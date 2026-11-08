@@ -1,0 +1,70 @@
+# 바이낸스 선물 팀 봇 (6개 역할)
+
+바이낸스 **USDⓈ-M 무기한 선물**을 자동으로 매수/매도하는 봇입니다.
+같은 코드를 3가지 모드로 돌릴 수 있습니다.
+
+| 모드 | 돈 | 키 | 용도 |
+|---|---|---|---|
+| `paper` | 가짜 돈 (내 PC 안에서만 계산) | 필요 없음 | **처음 1~2주는 여기서** |
+| `testnet` | 바이낸스 데모 계좌의 가짜 돈 | 데모 키 | 실제 주문 흐름 확인 |
+| `live` | **진짜 돈** | 실계좌 키 + 확인 문구 | 소액부터 |
+
+> ⚠️ **수익은 보장되지 않습니다.** 선물은 레버리지 때문에 손실이 빠릅니다. 이 봇의 기본 전략(EMA 교차)은
+> "작동하는 예시"일 뿐 수익을 내는 전략이라는 증거가 없습니다. 반드시 `backtest` → `paper` → 소액 `live` 순서로 가세요.
+> 바이낸스는 일부 국가(미국 등)에서 이용할 수 없고, 한국에서는 국내 미신고 해외 거래소입니다. 거주지의 이용 가능 여부와 세금 신고는 직접 확인하세요.
+
+## 6개 역할 봇과 총괄
+
+```
+CHIEF(src/chief.js) — 순서만 조율, 직접 주문/수량 결정 안 함
+ 1. DATA      src/bots/data.js       시세·캔들·종목 규칙(최소 수량 등) 수집
+ 2. STRATEGY  src/bots/strategy.js   EMA 20/50 교차 → LONG/SHORT/HOLD + ATR 손절·익절가
+ 3. RISK      src/bots/risk.js       수량 결정, 거래 거부권, 일일 손실 한도
+ 4. EXECUTION src/bots/execution.js  주문 전송 (거래소 / 페이퍼)
+ 5. EXIT      src/bots/exit.js       모든 포지션에 손절 보장, 손절·익절·반대신호 청산
+ 6. REPORTER  src/bots/reporter.js   로그, 거래일지(data/<모드>/journal.jsonl), 상태 저장
+```
+
+## 안전장치 (코드에 고정)
+
+- 레버리지 **10배 초과는 실행 거부**, 기본 3배, 격리(ISOLATED) 마진
+- 1회 거래 손실 = 계좌의 `RISK_PER_TRADE_PCT`% (기본 1%), 포지션 최대 `MAX_NOTIONAL_USDT` (기본 200 USDT)
+- 손절폭이 청산 거리의 절반 이상이면 리스크 봇이 거래 거부
+- 하루(UTC) 손실이 `DAILY_MAX_LOSS_PCT`% (기본 3%)에 닿으면 그날 신규 진입 중단
+- 손절은 **두 겹**: 거래소에 걸어 두는 손절 주문(PC가 꺼져도 작동) + 봇의 가격 감시
+- 손절 주문을 걸 수 없으면 **즉시 청산**
+- 봇이 모르는 포지션(수동 매매, 재시작)을 발견하면 진입가 대비 2% 비상 손절을 검
+- `live` 는 `.env` 에 `LIVE_CONFIRM=I_UNDERSTAND_REAL_MONEY_LOSS` 를 써야만 켜지고, 시작 전 10초 대기
+- **긴급 정지**: 봇 폴더에 `STOP` 이라는 빈 파일을 만들면 전 포지션 청산 후 종료
+- Ctrl+C 로 끄면 포지션은 그대로 두고, 거래소 손절 주문이 계속 보호
+
+## 내 컴퓨터에서 실행하기 (초보자용)
+
+1. [Node.js](https://nodejs.org) **v20 이상** 설치 → 터미널에서 `node --version` 확인
+2. 이 저장소 내려받기 → 폴더로 이동 (설치할 패키지 없음, `npm install` 불필요)
+3. 설정 파일 만들기: `cp .env.example .env` (Windows: `copy .env.example .env`)
+4. 테스트: `npm test`
+5. 과거 성과 확인: `npm run backtest -- BTCUSDT 60`  (60일)
+6. 접속 확인: `npm run check`
+7. 가짜 돈으로 실행: `npm start`  (계속 돌아감, 끄기는 Ctrl+C)
+
+### testnet → live 로 넘어갈 때
+
+1. 바이낸스 선물 설정에서 **단방향(One-way) 포지션 모드**, **USDⓈ-M 단일 자산 모드**
+2. API 키 만들기: **Enable Futures만 켜고 출금(Withdrawals)은 절대 끄기**, **IP 제한** 걸기
+3. 키는 `.env` 파일에만 붙여넣기 — 채팅, 깃허브, 스크린샷에 절대 올리지 마세요 (`.env` 는 git에 안 올라가게 설정됨)
+4. `.env` 에서 `MODE=testnet` → `npm run check` → `npm start` 로 며칠 확인
+5. 실계좌: `MODE=live`, `LIVE_CONFIRM=I_UNDERSTAND_REAL_MONEY_LOSS`, 잃어도 되는 **소액**만 입금
+
+## 결과 보기
+
+- `data/<모드>/bot.log` — 매 틱 기록
+- `data/<모드>/journal.jsonl` — 진입·청산 내역(가격, 사유, 손익)
+- `data/<모드>/state.json` — 손절가, 일일 시작 잔고
+
+## 알려진 한계
+
+- 바이낸스는 2025-12부터 손절·익절 같은 조건부 주문을 Algo Order API(`/fapi/v1/algoOrder`)로 옮겼습니다.
+  봇은 그 API를 먼저 쓰고, 실패하면 기존 방식을 시도하고, 둘 다 실패하면 청산합니다. 첫 testnet 실행에서 로그의 `WARN` 을 꼭 확인하세요.
+- 백테스트에는 슬리피지와 펀딩비가 반영되지 않습니다.
+- 한 종목당 포지션 하나, 단방향 모드만 지원합니다.

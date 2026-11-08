@@ -1,0 +1,64 @@
+// Tiny signed REST client for Binance USDⓈ-M futures. No dependencies.
+import crypto from 'node:crypto';
+
+export class BinanceError extends Error {
+  constructor(status, code, msg, path) {
+    super(`Binance ${status} ${code ?? ''} ${msg} (${path})`);
+    this.status = status; this.code = code; this.path = path;
+  }
+}
+
+export class BinanceClient {
+  constructor({ baseUrl, apiKey = '', apiSecret = '', recvWindow = 5000, fetchImpl = globalThis.fetch }) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.apiKey = apiKey;
+    this.apiSecret = apiSecret;
+    this.recvWindow = recvWindow;
+    this.fetch = fetchImpl;
+    this.timeOffset = 0;
+  }
+
+  static sign(query, secret) {
+    return crypto.createHmac('sha256', secret).update(query).digest('hex');
+  }
+
+  async syncTime() {
+    const t0 = Date.now();
+    const { serverTime } = await this.public('GET', '/fapi/v1/time');
+    this.timeOffset = serverTime - Math.round((t0 + Date.now()) / 2);
+  }
+
+  async public(method, path, params = {}) {
+    return this.#send(method, path, params, false);
+  }
+
+  async signed(method, path, params = {}) {
+    if (!this.apiKey || !this.apiSecret) throw new Error('API 키가 없습니다');
+    return this.#send(method, path, params, true);
+  }
+
+  async #send(method, path, params, sign) {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null) p.append(k, String(v));
+    if (sign) {
+      p.append('recvWindow', String(this.recvWindow));
+      p.append('timestamp', String(Date.now() + this.timeOffset));
+      p.append('signature', BinanceClient.sign(p.toString(), this.apiSecret));
+    }
+    const qs = p.toString();
+    const url = `${this.baseUrl}${path}${qs ? '?' + qs : ''}`;
+    const headers = this.apiKey ? { 'X-MBX-APIKEY': this.apiKey } : {};
+    let res;
+    try { res = await this.fetch(url, { method, headers, signal: AbortSignal.timeout(15000) }); }
+    catch (e) { throw new Error(`${this.baseUrl} 에 연결 실패 (${e.cause?.code ?? e.message}). 인터넷 연결, 방화벽, 또는 해당 국가/지역 접속 제한을 확인하세요.`); }
+    if (res.status === 451 || res.status === 403 && !this.apiKey)
+      throw new BinanceError(res.status, null, '현재 위치(IP)에서 바이낸스 접속이 제한됩니다', path);
+    const text = await res.text();
+    let body;
+    try { body = text ? JSON.parse(text) : {}; } catch { body = { msg: text.slice(0, 200) }; }
+    if (!res.ok || (body && typeof body.code === 'number' && body.code < 0)) {
+      throw new BinanceError(res.status, body?.code, body?.msg ?? text.slice(0, 200), path);
+    }
+    return body;
+  }
+}
