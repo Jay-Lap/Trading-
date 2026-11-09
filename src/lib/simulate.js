@@ -4,7 +4,7 @@ import { sizePosition } from '../bots/risk.js';
 
 const FEE = 0.0005; // taker, each side
 
-export function backtest(candles, cfg, filters, { startEquity = 1000, window = 300 } = {}) {
+export function backtest(candles, cfg, filters, { startEquity = 1000, window = 500 } = {}) {
   let equity = startEquity, peak = startEquity, maxDD = 0, pos = null;
   const trades = [];
   const closePos = (price, reason, c) => {

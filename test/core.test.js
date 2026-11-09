@@ -79,3 +79,18 @@ test('backtest runs and accounts fees', () => {
   assert.ok(r.trades >= 1);
   assert.ok(Number.isFinite(r.endEquity));
 });
+
+test('adx stays in 0..100 and trend filter can block entries', async () => {
+  const { adx } = await import('../src/lib/indicators.js');
+  const c = vCandles(120);
+  const a = adx(c, 5).filter(Number.isFinite);
+  assert.ok(a.length && a.every(x => x >= 0 && x <= 100));
+  let opened = 0, blocked = 0;
+  for (let i = 20; i <= c.length; i++) {
+    if (generateSignal(c.slice(0, i), cfg).action !== 'HOLD') opened++;
+    const s = generateSignal(c.slice(0, i), { ...cfg, adxMin: 101 });
+    assert.equal(s.action, 'HOLD');
+    if (/ADX/.test(s.reason)) blocked++;
+  }
+  assert.ok(opened > 0 && blocked === opened);
+});

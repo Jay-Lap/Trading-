@@ -10,7 +10,7 @@ export class DataBot {
   async klinesRange(symbol, interval, startTime, limit = 1500) {
     return this.client.public('GET', '/fapi/v1/klines', { symbol, interval, startTime, limit });
   }
-  async candles(symbol, interval, limit = 300) {
+  async candles(symbol, interval, limit = 500) {
     const rows = await this.client.public('GET', '/fapi/v1/klines', { symbol, interval, limit });
     return parseKlines(rows);
   }
@@ -45,7 +45,7 @@ export class DataBot {
 export const SPOT_DATA_URL = 'https://data-api.binance.vision';
 export class SpotDataBot extends DataBot {
   constructor(client) { super(client); this.source = 'spot'; }
-  async candles(symbol, interval, limit = 300) {
+  async candles(symbol, interval, limit = 500) {
     return parseKlines(await this.client.public('GET', '/api/v3/klines', { symbol, interval, limit }));
   }
   async klinesRange(symbol, interval, startTime, limit = 1000) {
