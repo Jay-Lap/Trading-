@@ -12,6 +12,9 @@ export function sizePosition({ signal, equity, filters, cfg }) {
   const liqFrac = 1 / cfg.leverage;
   if (stopFrac >= liqFrac * 0.5) return veto(`손절폭 ${(stopFrac * 100).toFixed(2)}% 가 청산 거리(약 ${(liqFrac * 100).toFixed(1)}%)에 너무 가까움 → 레버리지 낮추세요`);
 
+  // Volatility filter: if the ATR stop is very wide, the market is too wild — sit out.
+  if (cfg.maxStopPct && stopFrac * 100 > cfg.maxStopPct) return veto(`변동성 과다: 손절폭 ${(stopFrac * 100).toFixed(2)}% > 한도 ${cfg.maxStopPct}% → 쉬어감`);
+
   const riskUsdt = equity * cfg.riskPerTradePct / 100;
   let qty = riskUsdt / stopDist;
   const maxNotional = Math.min(cfg.maxNotionalUsdt, equity * cfg.leverage * 0.9);

@@ -104,3 +104,10 @@ test('reanchor keeps ATR distances around the current price', async () => {
   const s = sizePosition({ signal: r, equity: 1000, filters, cfg });
   assert.ok(s.ok && s.notional <= 200);
 });
+
+test('volatility filter vetoes very wide stops', () => {
+  const sig = { price: 100, stop: 93 }; // 7% stop
+  assert.equal(sizePosition({ signal: sig, equity: 1000, filters, cfg: { ...cfg, maxStopPct: 6 } }).ok, false);
+  assert.ok(/변동성/.test(sizePosition({ signal: sig, equity: 1000, filters, cfg: { ...cfg, maxStopPct: 6 } }).reason));
+  assert.equal(sizePosition({ signal: { price: 100, stop: 95 }, equity: 1000, filters, cfg: { ...cfg, maxStopPct: 6 } }).ok, true);
+});

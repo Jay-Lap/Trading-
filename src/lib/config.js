@@ -43,6 +43,7 @@ export function loadConfig({ env = true } = {}) {
     maxOpenPositions: num('MAX_OPEN_POSITIONS', 3),
     maxSameDirection: num('MAX_SAME_DIRECTION', 2),
     emergencyStopPct: num('EMERGENCY_STOP_PCT', 2),
+    maxStopPct: num('MAX_STOP_PCT', 6),
     paperStartUsdt: num('PAPER_START_USDT', 1000),
   };
   validateConfig(cfg);
