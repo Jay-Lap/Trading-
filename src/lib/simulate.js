@@ -60,7 +60,7 @@ function htfAt(list, decisionTime) {
   return ans && Number.isFinite(ans.conviction) ? ans.conviction : undefined;
 }
 
-export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, window = 500, htf = null } = {}) {
+export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, window = 500, htf = null, tradeFrom = 0 } = {}) {
   const syms = Object.keys(series);
   const idx = Object.fromEntries(syms.map(s => [s, new Map(series[s].map((c, i) => [c.openTime, i]))]));
   const times = [...new Set(syms.flatMap(s => series[s].map(c => c.openTime)))].sort((a, b) => a - b);
@@ -71,17 +71,18 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
     const p = pos[s];
     const pnl = (price - p.entry) * p.qty - Math.abs(p.qty) * price * FEE;
     equity += pnl; perSym[s].n++; perSym[s].pnl += pnl;
-    trades.push({ symbol: s, side: p.qty > 0 ? 'LONG' : 'SHORT', pnl, reason });
+    trades.push({ symbol: s, side: p.qty > 0 ? 'LONG' : 'SHORT', entryTime: p.time, entry: p.entry, exitTime: lastTime, exit: price, qty: Math.abs(p.qty), pnl, reason });
     delete pos[s];
   };
   const lastClose = {};
+  let lastTime = 0;
   for (const t of times) {
     const cands = [];
     for (const s of syms) {
       const i = idx[s].get(t);
       if (i === undefined) continue;
       const c = series[s][i];
-      lastClose[s] = c.close;
+      lastClose[s] = c.close; lastTime = c.closeTime;
       const p = pos[s];
       if (p) {
         const L = p.qty > 0;
@@ -94,15 +95,15 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
       if (sig.action === 'HOLD') continue;
       if (pos[s] && (pos[s].qty > 0) === (sig.action === 'LONG')) continue;
       if (pos[s]) close(s, c.close, 'reverse');
-      cands.push({ symbol: s, sig, close: c.close, time: t });
+      if (t >= tradeFrom) cands.push({ symbol: s, sig, close: c.close, time: c.closeTime });
     }
-    for (const { symbol: s, sig, close: px } of rankCandidates(cands)) {
+    for (const { symbol: s, sig, close: px, time: ct } of rankCandidates(cands)) {
       const open = Object.fromEntries(Object.entries(pos).map(([k, p]) => [k, p.qty > 0 ? 'LONG' : 'SHORT']));
       if (!allowEntry(sig.action, open, cfg).ok) { blocked++; continue; }
       const z = sizePosition({ signal: sig, equity, filters: filtersBy[s], cfg });
       if (!z.ok) continue;
       equity -= z.qty * px * FEE;
-      pos[s] = { qty: sig.action === 'LONG' ? z.qty : -z.qty, entry: px, stop: sig.stop, tp: sig.takeProfit };
+      pos[s] = { qty: sig.action === 'LONG' ? z.qty : -z.qty, entry: px, stop: sig.stop, tp: sig.takeProfit, time: ct };
     }
     const mtm = equity + Object.entries(pos).reduce((a, [s, p]) => a + (lastClose[s] - p.entry) * p.qty, 0);
     peak = Math.max(peak, mtm);
