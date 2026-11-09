@@ -28,7 +28,7 @@ export function loadConfig({ env = true } = {}) {
     emaSlow: num('EMA_SLOW', 50),
     atrPeriod: num('ATR_PERIOD', 14),
     stopAtrMult: num('STOP_ATR_MULT', 2),
-    takeProfitAtrMult: num('TAKE_PROFIT_ATR_MULT', 0),
+    takeProfitAtrMult: num('TAKE_PROFIT_ATR_MULT', 5),
     strategy: (process.env.STRATEGY || 'committee').toLowerCase(),
     committeeThreshold: num('COMMITTEE_THRESHOLD', 0.5),
     committeeAdxMin: num('COMMITTEE_ADX_MIN', 20),
