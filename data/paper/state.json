@@ -16,9 +16,9 @@
     }
   },
   "lastCandle": {
-    "BTCUSDT": 1794168000000,
-    "ETHUSDT": 1794168000000,
-    "SOLUSDT": 1794168000000
+    "BTCUSDT": 1794182400000,
+    "ETHUSDT": 1794182400000,
+    "SOLUSDT": 1794182400000
   },
   "paper": {
     "cash": 999.800373412,
@@ -43,8 +43,8 @@
         "takeProfit": 72644.68215681532
       }
     },
-    "lastCheck": 1794196521965,
-    "equity": 999.86
+    "lastCheck": 1794197281642,
+    "equity": 999.84
   },
   "day": "2026-11-09",
   "dayStartEquity": 1000,
