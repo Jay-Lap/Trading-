@@ -5,7 +5,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { loadConfig, baseUrlFor } from './lib/config.js';
 import { BinanceClient } from './lib/binanceClient.js';
-import { DataBot } from './bots/data.js';
+import { DataBot, SpotDataBot, SPOT_DATA_URL } from './bots/data.js';
 import { generateSignal } from './bots/strategy.js';
 import { sizePosition, checkDailyLimit } from './bots/risk.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
@@ -20,10 +20,17 @@ export async function buildTeam(cfg, { reporter, dataClient, tradeClient } = {})
   const tc = tradeClient ?? new BinanceClient({ baseUrl: baseUrlFor(cfg), apiKey: cfg.apiKey, apiSecret: cfg.apiSecret });
   // paper mode reads real (mainnet) public prices; testnet/live read from the exchange they trade on.
   const dc = dataClient ?? (cfg.mode === 'paper' ? new BinanceClient({ baseUrl: cfg.liveBaseUrl }) : tc);
-  const data = new DataBot(dc);
+  let data = new DataBot(dc);
+  let filters;
+  try { filters = await data.symbolFilters(cfg.symbols); }
+  catch (e) {
+    if (cfg.mode !== 'paper' || dataClient) throw e;
+    r.warn(`선물 시세 접속 불가 (${e.message}) → 페이퍼 모드는 현물 시세(${SPOT_DATA_URL})로 대체`);
+    data = new SpotDataBot(new BinanceClient({ baseUrl: SPOT_DATA_URL }));
+    filters = await data.symbolFilters(cfg.symbols);
+  }
   const broker = cfg.mode === 'paper' ? new PaperBroker(cfg.paperStartUsdt, s => data.markPrice(s)) : new ExchangeBroker(tc, r);
   if (cfg.mode === 'paper') r.state.positions = {}; // paper positions live in memory only
-  const filters = await data.symbolFilters(cfg.symbols);
   await broker.init(cfg.symbols, cfg.leverage);
   return { cfg, r, data, broker, filters, exit: new ExitBot(broker, r, cfg) };
 }
@@ -101,6 +108,7 @@ async function main() {
     await sleep(10_000);
   }
   const team = await buildTeam(cfg);
+  team.r.info(`시세 출처: ${team.data.source === 'spot' ? '바이낸스 현물(대체)' : '바이낸스 선물'}`);
   team.r.info(`시작. 계좌 평가금액 ${(await team.broker.equity()).toFixed(2)} USDT. 긴급 정지: 이 폴더에 STOP 파일 생성.`);
   process.on('SIGINT', () => { team.r.save(); team.r.info('Ctrl+C 로 종료. 열린 포지션은 거래소 손절 주문이 계속 보호합니다.'); process.exit(0); });
   for (;;) {
