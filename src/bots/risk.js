@@ -34,3 +34,19 @@ export function checkDailyLimit(state, equity, cfg, now = new Date()) {
   if (lossPct >= cfg.dailyMaxLossPct) state.halted = true;
   return { halted: state.halted, lossPct };
 }
+
+// Portfolio limits. Majors move together, so 3 shorts ≈ one bet at 3x size.
+// open: { symbol: 'LONG' | 'SHORT' } currently held.
+export function allowEntry(direction, open, cfg) {
+  const held = Object.values(open);
+  const maxOpen = cfg.maxOpenPositions ?? 3, maxSame = cfg.maxSameDirection ?? 2;
+  if (held.length >= maxOpen) return veto(`동시 포지션 한도 ${maxOpen}개 도달`);
+  const same = held.filter(d => d === direction).length;
+  if (same >= maxSame) return veto(`같은 방향(${direction}) 한도 ${maxSame}개 도달 — 코인끼리 같이 움직여 위험이 겹침`);
+  return { ok: true };
+}
+
+// Strongest conviction first, so limited slots go to the clearest signals.
+export function rankCandidates(list) {
+  return [...list].sort((a, b) => Math.abs(b.sig.conviction ?? 1) - Math.abs(a.sig.conviction ?? 1));
+}

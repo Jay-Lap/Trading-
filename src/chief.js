@@ -7,7 +7,7 @@ import { loadConfig, baseUrlFor } from './lib/config.js';
 import { BinanceClient } from './lib/binanceClient.js';
 import { DataBot, SpotDataBot, SPOT_DATA_URL } from './bots/data.js';
 import { generateSignal } from './bots/strategy.js';
-import { sizePosition, checkDailyLimit } from './bots/risk.js';
+import { sizePosition, checkDailyLimit, allowEntry, rankCandidates } from './bots/risk.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
 import { Reporter } from './bots/reporter.js';
@@ -53,11 +53,15 @@ export async function tick(team) {
   const daily = checkDailyLimit(r.state, equity, cfg);
   if (daily.halted) r.warn(`일일 손실 ${daily.lossPct.toFixed(2)}% ≥ 한도 ${cfg.dailyMaxLossPct}% → 오늘(UTC) 신규 진입 중단`);
 
+  // Pass 1: protect/close existing positions and collect fresh entry candidates.
+  const candidates = [];
+  const open = {}; // symbol -> 'LONG' | 'SHORT'
   for (const symbol of cfg.symbols) {
     const f = filters[symbol];
     try {
       let pos = await broker.position(symbol);
       if (pos && await exit.manage(symbol, pos, f)) pos = null;
+      if (pos) open[symbol] = pos.qty > 0 ? 'LONG' : 'SHORT';
 
       const candles = await data.candles(symbol, cfg.interval);
       const last = candles.at(-1);
@@ -65,20 +69,30 @@ export async function tick(team) {
       r.state.lastCandle[symbol] = last.openTime;
 
       const sig = generateSignal(candles, cfg);
-      if (pos && sig.closeSide && (pos.qty > 0 ? 'LONG' : 'SHORT') === sig.closeSide) {
-        await exit.close(symbol, pos, f, `위원회 반대 전환 (확신 ${sig.conviction.toFixed(2)})`); pos = null;
+      if (pos && sig.closeSide && open[symbol] === sig.closeSide) {
+        await exit.close(symbol, pos, f, `위원회 반대 전환 (확신 ${sig.conviction.toFixed(2)})`); pos = null; delete open[symbol];
       }
       if (sig.action === 'HOLD') { r.info(`${symbol} 대기: ${sig.reason}${sig.trend ? ` (추세 ${sig.trend})` : ''} 가격 ${sig.price ?? '-'}`); continue; }
+      if (pos && open[symbol] === sig.action) { r.info(`${symbol} 이미 같은 방향 포지션 보유`); continue; }
+      if (pos) { await exit.close(symbol, pos, f, `반대 신호(${sig.reason})`); pos = null; delete open[symbol]; }
+      candidates.push({ symbol, sig });
+    } catch (e) {
+      r.error(`${symbol} 처리 중 오류: ${e.message}`);
+    }
+  }
 
-      const wantLong = sig.action === 'LONG';
-      if (pos && (pos.qty > 0) === wantLong) { r.info(`${symbol} 이미 같은 방향 포지션 보유`); continue; }
-      if (pos) { await exit.close(symbol, pos, f, `반대 신호(${sig.reason})`); pos = null; }
+  // Pass 2: RISK bot ranks candidates by conviction and enforces portfolio limits.
+  for (const { symbol, sig } of rankCandidates(candidates)) {
+    const f = filters[symbol];
+    try {
       if (daily.halted) continue;
+      const gate = allowEntry(sig.action, open, cfg);
+      if (!gate.ok) { r.warn(`${symbol} ${sig.action} 보류: ${gate.reason}`); continue; }
 
       const sizing = sizePosition({ signal: sig, equity: await broker.equity(), filters: f, cfg });
       if (!sizing.ok) { r.warn(`${symbol} 리스크 봇 거부: ${sizing.reason}`); continue; }
 
-      const side = wantLong ? 'BUY' : 'SELL';
+      const side = sig.action === 'LONG' ? 'BUY' : 'SELL';
       // Record intended stop BEFORE ordering, so a crash mid-way still leaves a stop to enforce.
       r.state.positions[symbol] = { stop: sig.stop, takeProfit: sig.takeProfit, side, signalPrice: sig.price, openedAt: new Date().toISOString() };
       r.save();
@@ -88,6 +102,7 @@ export async function tick(team) {
         if (!(await broker.position(symbol))) delete r.state.positions[symbol];
         throw e;
       }
+      open[symbol] = sig.action;
       const fill = Number(res.avgPrice) || sig.price;
       r.trade({ event: 'OPEN', symbol, side, qty: sizing.qty, price: fill, reason: sig.reason, stop: sig.stop, takeProfit: sig.takeProfit, riskUsdt: +sizing.riskUsdt.toFixed(2) });
 

@@ -40,6 +40,8 @@ export function loadConfig({ env = true } = {}) {
     leverage: num('LEVERAGE', 3),
     maxNotionalUsdt: num('MAX_NOTIONAL_USDT', 200),
     dailyMaxLossPct: num('DAILY_MAX_LOSS_PCT', 3),
+    maxOpenPositions: num('MAX_OPEN_POSITIONS', 3),
+    maxSameDirection: num('MAX_SAME_DIRECTION', 2),
     emergencyStopPct: num('EMERGENCY_STOP_PCT', 2),
     paperStartUsdt: num('PAPER_START_USDT', 1000),
   };
@@ -53,6 +55,7 @@ export function validateConfig(cfg) {
     errs.push(`LEVERAGE 는 1~${HARD_MAX_LEVERAGE} 사이 정수여야 합니다 (현재 ${cfg.leverage})`);
   if (cfg.riskPerTradePct <= 0 || cfg.riskPerTradePct > 5) errs.push('RISK_PER_TRADE_PCT 는 0 초과 5 이하여야 합니다');
   if (cfg.dailyMaxLossPct <= 0 || cfg.dailyMaxLossPct > 20) errs.push('DAILY_MAX_LOSS_PCT 는 0 초과 20 이하여야 합니다');
+  if (!(cfg.maxOpenPositions >= 1) || !(cfg.maxSameDirection >= 1)) errs.push('MAX_OPEN_POSITIONS / MAX_SAME_DIRECTION 는 1 이상');
   if (cfg.maxNotionalUsdt <= 0) errs.push('MAX_NOTIONAL_USDT 는 0보다 커야 합니다');
   if (!['ema', 'committee'].includes(cfg.strategy)) errs.push('STRATEGY 는 ema 또는 committee 여야 합니다');
   if (cfg.committeeThreshold <= 0 || cfg.committeeThreshold > 1) errs.push('COMMITTEE_THRESHOLD 는 0 초과 1 이하');

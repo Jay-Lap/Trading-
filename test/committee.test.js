@@ -34,3 +34,24 @@ test('too few candles → HOLD, and committee backtest runs', () => {
   const r = backtest(trend(400, 0.003), { ...cfg, strategy: 'committee' }, filters);
   assert.ok(Number.isFinite(r.endEquity));
 });
+
+test('portfolio limits: max same direction and max open', async () => {
+  const { allowEntry, rankCandidates } = await import('../src/bots/risk.js');
+  const c = { maxOpenPositions: 3, maxSameDirection: 2 };
+  assert.equal(allowEntry('SHORT', { A: 'SHORT' }, c).ok, true);
+  assert.equal(allowEntry('SHORT', { A: 'SHORT', B: 'SHORT' }, c).ok, false);
+  assert.equal(allowEntry('LONG', { A: 'SHORT', B: 'SHORT' }, c).ok, true);
+  assert.equal(allowEntry('LONG', { A: 'SHORT', B: 'SHORT', C: 'LONG' }, c).ok, false);
+  const r = rankCandidates([{ symbol: 'A', sig: { conviction: -0.55 } }, { symbol: 'B', sig: { conviction: 0.9 } }, { symbol: 'C', sig: { conviction: -0.7 } }]);
+  assert.deepEqual(r.map(x => x.symbol), ['B', 'C', 'A']);
+});
+
+test('portfolio backtest never holds more than the limits', async () => {
+  const { backtestPortfolio } = await import('../src/lib/simulate.js');
+  const series = { A: trend(400, -0.003), B: trend(400, -0.0031, 50), C: trend(400, -0.0029, 20) };
+  const f = { A: filters, B: filters, C: filters };
+  const r = backtestPortfolio(series, { ...cfg, strategy: 'committee', maxSameDirection: 2 }, f);
+  assert.ok(r.blocked > 0, 'third same-direction short must be blocked');
+  const r1 = backtestPortfolio(series, { ...cfg, strategy: 'committee', maxSameDirection: 1 }, f);
+  assert.ok(r1.blocked >= r.blocked);
+});

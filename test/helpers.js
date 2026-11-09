@@ -2,7 +2,7 @@ export const filters = { stepSize: '0.001', minQty: 0.001, maxQty: 1000, tickSiz
 export const cfg = {
   mode: 'paper', strategy: 'ema', committeeThreshold: 0.5, committeeAdxMin: 20, symbols: ['BTCUSDT'], interval: '15m', emaFast: 5, emaSlow: 12, atrPeriod: 5,
   stopAtrMult: 2, takeProfitAtrMult: 3, pollSeconds: 20, riskPerTradePct: 1, leverage: 3,
-  maxNotionalUsdt: 200, dailyMaxLossPct: 3, emergencyStopPct: 2, paperStartUsdt: 1000,
+  maxNotionalUsdt: 200, dailyMaxLossPct: 3, maxOpenPositions: 3, maxSameDirection: 2, emergencyStopPct: 2, paperStartUsdt: 1000,
   liveBaseUrl: 'https://fapi.binance.com', testnetBaseUrl: 'https://demo-fapi.binance.com', apiKey: '', apiSecret: '',
 };
 // Down-trend then up-trend → guarantees a golden cross near the end.
