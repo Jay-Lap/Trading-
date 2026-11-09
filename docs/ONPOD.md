@@ -40,12 +40,17 @@ onpod app env set binance-team-bot MODE=testnet BINANCE_API_KEY=데모키 BINANC
    onpod app egress enable binance-team-bot shared     # 약 ₩27,000/월
    onpod app egress show binance-team-bot              # 여기 나온 IP 를 바이낸스 API 키 허용 IP 로 등록
    ```
+   ⚠ 켠 뒤 `onpod app restart binance-team-bot` 을 해야 실제로 그 IP 로 나갑니다 (2026-11-09 확인: 재시작 전엔 예전 IP).
+   확인: `onpod exec binance-team-bot -- node -e "fetch('https://api.ipify.org').then(r=>r.text()).then(console.log)"`
    계좌가 커지면 전용 IP(`dedicated`, 약 ₩94,500/월)로 변경.
+   현재 공유 고정 IP: 13.124.46.39
 2. 바이낸스 실계좌 API 키: Enable Futures 만 · 출금 끔 · 위 IP 만 허용
-3. 설정:
+3. 첫 실계좌 설정 (아주 소액 · SOL 만 · 포지션 1개):
    ```
-   onpod app env set binance-team-bot MODE=live LIVE_CONFIRM=I_UNDERSTAND_REAL_MONEY_LOSS BINANCE_API_KEY=... BINANCE_API_SECRET=... MAX_NOTIONAL_USDT=50 RISK_PER_TRADE_PCT=0.5
+   onpod app env set binance-team-bot MODE=live LIVE_CONFIRM=I_UNDERSTAND_REAL_MONEY_LOSS SYMBOLS=SOLUSDT MAX_OPEN_POSITIONS=1 MAX_NOTIONAL_USDT=15 RISK_PER_TRADE_PCT=1 BINANCE_API_KEY="..." BINANCE_API_SECRET="..."
    ```
+   - 선물 지갑 약 30 USDT 기준. BTC 는 최소 주문금액이 커서 소액으로는 리스크 봇이 거부하므로 SOL 로 시작.
+   - 첫 진입 후 바이낸스 앱 → 선물 → 미체결 주문(조건부/TP·SL)에 손절·익절이 걸렸는지 확인.
 
 ## 알아둘 점
 
