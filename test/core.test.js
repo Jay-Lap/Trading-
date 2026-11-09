@@ -94,3 +94,13 @@ test('adx stays in 0..100 and trend filter can block entries', async () => {
   }
   assert.ok(opened > 0 && blocked === opened);
 });
+
+test('reanchor keeps ATR distances around the current price', async () => {
+  const { reanchor } = await import('../src/bots/risk.js');
+  const r = reanchor({ action: 'SHORT', price: 86.5, stop: 89.6, takeProfit: 81.85 }, 87.8);
+  assert.equal(r.price, 87.8);
+  assert.ok(Math.abs((r.stop - r.price) - 3.1) < 1e-9);
+  assert.ok(Math.abs((r.price - r.takeProfit) - 4.65) < 1e-9);
+  const s = sizePosition({ signal: r, equity: 1000, filters, cfg });
+  assert.ok(s.ok && s.notional <= 200);
+});

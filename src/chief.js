@@ -7,7 +7,7 @@ import { loadConfig, baseUrlFor } from './lib/config.js';
 import { BinanceClient } from './lib/binanceClient.js';
 import { DataBot, SpotDataBot, SPOT_DATA_URL } from './bots/data.js';
 import { generateSignal } from './bots/strategy.js';
-import { sizePosition, checkDailyLimit, allowEntry, rankCandidates } from './bots/risk.js';
+import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor } from './bots/risk.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
 import { Reporter } from './bots/reporter.js';
@@ -82,9 +82,10 @@ export async function tick(team) {
   }
 
   // Pass 2: RISK bot ranks candidates by conviction and enforces portfolio limits.
-  for (const { symbol, sig } of rankCandidates(candidates)) {
+  for (const { symbol, sig: raw } of rankCandidates(candidates)) {
     const f = filters[symbol];
     try {
+      const sig = reanchor(raw, await data.markPrice(symbol));
       if (daily.halted) continue;
       const gate = allowEntry(sig.action, open, cfg);
       if (!gate.ok) { r.warn(`${symbol} ${sig.action} 보류: ${gate.reason}`); continue; }
@@ -94,7 +95,7 @@ export async function tick(team) {
 
       const side = sig.action === 'LONG' ? 'BUY' : 'SELL';
       // Record intended stop BEFORE ordering, so a crash mid-way still leaves a stop to enforce.
-      r.state.positions[symbol] = { stop: sig.stop, takeProfit: sig.takeProfit, side, signalPrice: sig.price, openedAt: new Date().toISOString() };
+      r.state.positions[symbol] = { stop: sig.stop, takeProfit: sig.takeProfit, side, signalPrice: sig.signalPrice ?? sig.price, openedAt: new Date().toISOString() };
       r.save();
       let res;
       try { res = await broker.market(symbol, side, sizing.qty, f); }

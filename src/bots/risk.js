@@ -50,3 +50,11 @@ export function allowEntry(direction, open, cfg) {
 export function rankCandidates(list) {
   return [...list].sort((a, b) => Math.abs(b.sig.conviction ?? 1) - Math.abs(a.sig.conviction ?? 1));
 }
+
+// Candle-close signals can be hours old on 4h bars. Re-anchor price, stop and target to the
+// current mark price (same ATR distances) so size, notional cap and stop reflect the real fill.
+export function reanchor(sig, mark) {
+  if (!(mark > 0) || !(sig.price > 0)) return sig;
+  const d = mark - sig.price;
+  return { ...sig, signalPrice: sig.price, price: mark, stop: sig.stop + d, takeProfit: sig.takeProfit != null ? sig.takeProfit + d : sig.takeProfit };
+}
