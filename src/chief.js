@@ -29,8 +29,13 @@ export async function buildTeam(cfg, { reporter, dataClient, tradeClient } = {})
     data = new SpotDataBot(new BinanceClient({ baseUrl: SPOT_DATA_URL }));
     filters = await data.symbolFilters(cfg.symbols);
   }
-  const broker = cfg.mode === 'paper' ? new PaperBroker(cfg.paperStartUsdt, s => data.markPrice(s)) : new ExchangeBroker(tc, r);
-  if (cfg.mode === 'paper') r.state.positions = {}; // paper positions live in memory only
+  let broker;
+  if (cfg.mode === 'paper') {
+    r.state.paper ??= {};
+    broker = new PaperBroker(cfg.paperStartUsdt, s => data.markPrice(s), r.state.paper);
+    // drop stop records for symbols the fake account does not hold
+    for (const s of Object.keys(r.state.positions)) if (!r.state.paper.pos[s]) delete r.state.positions[s];
+  } else broker = new ExchangeBroker(tc, r);
   await broker.init(cfg.symbols, cfg.leverage);
   return { cfg, r, data, broker, filters, exit: new ExitBot(broker, r, cfg) };
 }
@@ -60,6 +65,10 @@ export async function tick(team) {
     const f = filters[symbol];
     try {
       let pos = await broker.position(symbol);
+      if (pos && broker.kind === 'paper' && r.state.paper.lastCheck) {
+        const since = await data.candlesSince(symbol, '5m', r.state.paper.lastCheck);
+        if (await exit.paperCatchUp(symbol, pos, f, since)) pos = null;
+      }
       if (pos && await exit.manage(symbol, pos, f)) pos = null;
       if (pos) open[symbol] = pos.qty > 0 ? 'LONG' : 'SHORT';
 
@@ -112,6 +121,11 @@ export async function tick(team) {
     } catch (e) {
       r.error(`${symbol} 처리 중 오류: ${e.message}`);
     }
+  }
+  if (broker.kind === 'paper') {
+    r.state.paper.lastCheck = Date.now();
+    r.state.paper.equity = +(await broker.equity()).toFixed(2);
+    r.info(`가상 계좌: 평가금액 ${r.state.paper.equity} USDT (시작 ${r.state.paper.startUsdt}) · 보유 ${Object.entries(r.state.paper.pos).map(([k, p]) => `${k} ${p.qty > 0 ? '롱' : '숏'} ${Math.abs(p.qty)}@${p.entryPrice}`).join(', ') || '없음'}`);
   }
   r.save();
   return 'OK';

@@ -14,6 +14,19 @@ export class DataBot {
     const rows = await this.client.public('GET', '/fapi/v1/klines', { symbol, interval, limit });
     return parseKlines(rows);
   }
+  // closed candles with openTime >= since (paged), for paper stop catch-up
+  async candlesSince(symbol, interval, since) {
+    const out = [];
+    let st = since;
+    for (let k = 0; k < 20 && st < Date.now(); k++) {
+      const rows = await this.klinesRange(symbol, interval, st, 1000);
+      if (!rows.length) break;
+      out.push(...parseKlines(rows));
+      st = rows.at(-1)[6] + 1;
+      if (rows.length < 1000) break;
+    }
+    return out;
+  }
   async markPrice(symbol) {
     const r = await this.client.public('GET', '/fapi/v1/premiumIndex', { symbol });
     return Number(r.markPrice);

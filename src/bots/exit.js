@@ -3,14 +3,29 @@
 export class ExitBot {
   constructor(broker, reporter, cfg) { this.b = broker; this.r = reporter; this.cfg = cfg; }
 
-  async close(symbol, pos, filters, reason) {
+  async close(symbol, pos, filters, reason, fillPrice = null) {
     const side = pos.qty > 0 ? 'SELL' : 'BUY';
-    const res = await this.b.market(symbol, side, Math.abs(pos.qty), filters, true);
+    const res = await this.b.market(symbol, side, Math.abs(pos.qty), filters, true, fillPrice);
     await this.b.cancelProtection(symbol);
     const meta = this.r.state.positions[symbol];
     delete this.r.state.positions[symbol];
     this.r.trade({ event: 'CLOSE', symbol, side, qty: Math.abs(pos.qty), price: Number(res.avgPrice) || pos.markPrice, entry: pos.entryPrice, reason, meta });
     return res;
+  }
+
+  // PAPER ONLY: the bot may sleep for hours between runs. Replay 5m candles since the last check
+  // and fill at the stop/target if price touched it meanwhile (stop wins if both in one candle).
+  async paperCatchUp(symbol, pos, filters, candles5m) {
+    const meta = this.r.state.positions[symbol];
+    if (!meta) return null;
+    const long = pos.qty > 0;
+    for (const c of candles5m) {
+      if (long ? c.low <= meta.stop : c.high >= meta.stop)
+        return this.close(symbol, pos, filters, `손절가 도달(${new Date(c.openTime).toISOString().slice(5, 16)} 5분봉)`, meta.stop);
+      if (meta.takeProfit && (long ? c.high >= meta.takeProfit : c.low <= meta.takeProfit))
+        return this.close(symbol, pos, filters, `익절가 도달(${new Date(c.openTime).toISOString().slice(5, 16)} 5분봉)`, meta.takeProfit);
+    }
+    return null;
   }
 
   // Called every tick for a symbol that has an open position.
@@ -35,7 +50,7 @@ export class ExitBot {
     if (!(await this.b.hasStop(symbol))) {
       try {
         await this.b.placeProtection(symbol, long ? 'SELL' : 'BUY', meta.stop, meta.takeProfit, filters);
-        this.r.info(`${symbol} 거래소 손절 주문 (재)설정 @ ${meta.stop}`);
+        this.r.info(`${symbol} ${this.b.kind === 'paper' ? '가상 손절·익절' : '거래소 손절 주문'} 설정 @ 손절 ${meta.stop.toFixed(4)}${meta.takeProfit ? ` / 익절 ${meta.takeProfit.toFixed(4)}` : ''}`);
       } catch (e) {
         this.r.error(`${symbol} 손절 주문을 걸 수 없음 → 안전을 위해 즉시 청산: ${e.message}`);
         return this.close(symbol, pos, filters, '손절 주문 실패로 안전 청산');

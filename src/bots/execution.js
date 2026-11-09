@@ -88,14 +88,22 @@ export class ExchangeBroker {
 
 // Paper broker: real prices, fake money, local fills with taker fee.
 export class PaperBroker {
-  constructor(startUsdt, priceFn) {
+  // store: a plain object persisted by the reporter (state.paper), so the fake account
+  // survives restarts: { cash, pos: {symbol: {qty, entryPrice}}, prot: {symbol: {stop, takeProfit}} }
+  constructor(startUsdt, priceFn, store = {}) {
     this.kind = 'paper';
-    this.cash = startUsdt;
-    this.pos = {};      // symbol -> { qty, entryPrice }
-    this.prot = {};     // symbol -> { stop, takeProfit }
+    store.cash ??= startUsdt;
+    store.startUsdt ??= startUsdt;
+    store.pos ??= {};
+    store.prot ??= {};
+    this.store = store;
     this.priceFn = priceFn;
     this.lastPrice = {};
   }
+  get cash() { return this.store.cash; }
+  set cash(v) { this.store.cash = v; }
+  get pos() { return this.store.pos; }
+  get prot() { return this.store.prot; }
   async init() {}
   async #price(symbol) { const p = await this.priceFn(symbol); this.lastPrice[symbol] = p; return p; }
   async equity() {
@@ -107,8 +115,8 @@ export class PaperBroker {
     const p = this.pos[symbol];
     return p ? { ...p, markPrice: await this.#price(symbol) } : null;
   }
-  async market(symbol, side, qty, _filters, reduceOnly = false) {
-    const price = await this.#price(symbol);
+  async market(symbol, side, qty, _filters, reduceOnly = false, fillPrice = null) {
+    const price = fillPrice ?? await this.#price(symbol);
     const signed = side === 'BUY' ? qty : -qty;
     const cur = this.pos[symbol];
     this.cash -= qty * price * TAKER_FEE;
@@ -119,7 +127,7 @@ export class PaperBroker {
       const closing = Math.min(Math.abs(signed), Math.abs(cur.qty)) * Math.sign(cur.qty);
       this.cash += (price - cur.entryPrice) * closing;
       const rest = cur.qty + signed;
-      if (Math.abs(rest) < 1e-12) delete this.pos[symbol];
+      if (Math.abs(rest) < 1e-9) delete this.pos[symbol];
       else if (Math.sign(rest) === Math.sign(cur.qty)) cur.qty = rest;
       else if (!reduceOnly) this.pos[symbol] = { qty: rest, entryPrice: price };
       else delete this.pos[symbol];

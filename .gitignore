@@ -1,4 +1,7 @@
 node_modules/
 .env
-data/
+data/*
+# the fake-money (paper) account is kept in git so it survives cloud restarts
+!data/paper/
+data/paper/bot.log
 STOP

@@ -1,0 +1,52 @@
+{
+  "positions": {
+    "SOLUSDT": {
+      "stop": 90.69056497960413,
+      "takeProfit": 82.98915253059378,
+      "side": "SELL",
+      "signalPrice": 86.54,
+      "openedAt": "2026-11-09T03:55:15.416Z"
+    },
+    "BTCUSDT": {
+      "stop": 76476.21189545646,
+      "takeProfit": 72644.68215681532,
+      "side": "SELL",
+      "signalPrice": 74851.44,
+      "openedAt": "2026-11-09T03:55:16.839Z"
+    }
+  },
+  "lastCandle": {
+    "BTCUSDT": 1794168000000,
+    "ETHUSDT": 1794168000000,
+    "SOLUSDT": 1794168000000
+  },
+  "paper": {
+    "cash": 999.800373412,
+    "startUsdt": 1000,
+    "pos": {
+      "SOLUSDT": {
+        "qty": -2.282,
+        "entryPrice": 87.6
+      },
+      "BTCUSDT": {
+        "qty": -0.00266,
+        "entryPrice": 74943.6
+      }
+    },
+    "prot": {
+      "SOLUSDT": {
+        "stop": 90.69056497960413,
+        "takeProfit": 82.98915253059378
+      },
+      "BTCUSDT": {
+        "stop": 76476.21189545646,
+        "takeProfit": 72644.68215681532
+      }
+    },
+    "lastCheck": 1794196521965,
+    "equity": 999.86
+  },
+  "day": "2026-11-09",
+  "dayStartEquity": 1000,
+  "halted": false
+}

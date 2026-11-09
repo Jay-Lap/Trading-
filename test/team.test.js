@@ -99,3 +99,31 @@ test('paper broker round trip', async () => {
   assert.equal(await b.position('X'), null);
   assert.ok(Math.abs(b.cash - (1000 - 0.05 - 0.055 + 10)) < 1e-9);
 });
+
+test('paper account persists across restarts and catches up a stop hit while asleep', async () => {
+  const { PaperBroker } = await import('../src/bots/execution.js');
+  const { ExitBot } = await import('../src/bots/exit.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-'));
+  let price = 100;
+  const r1 = new Reporter(dir, { quiet: true });
+  r1.state.paper = {};
+  const b1 = new PaperBroker(1000, async () => price, r1.state.paper);
+  await b1.market('X', 'SELL', 1, null);                     // short 1 @ 100
+  r1.state.positions.X = { stop: 105, takeProfit: 90 };
+  r1.save();
+
+  // "restart": new objects read the saved file
+  const r2 = new Reporter(dir, { quiet: true });
+  const b2 = new PaperBroker(1000, async () => price, r2.state.paper);
+  assert.equal((await b2.position('X')).qty, -1);
+  price = 101; // price now looks harmless, but a 5m candle spiked to 106 meanwhile
+  const ex = new ExitBot(b2, r2, cfg);
+  const pos = await b2.position('X');
+  const closed = await ex.paperCatchUp('X', pos, null, [{ openTime: 0, high: 102, low: 99 }, { openTime: 300000, high: 106, low: 100 }]);
+  assert.ok(closed);
+  assert.equal(await b2.position('X'), null);
+  // loss = 5 + fees(0.05 + 0.0525)
+  assert.ok(Math.abs(r2.state.paper.cash - (1000 - 5 - 0.05 - 0.0525)) < 1e-9);
+  const j = fs.readFileSync(path.join(dir, 'journal.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(j.at(-1).price, 105);
+});
