@@ -23,6 +23,7 @@ export class Reporter {
   trade(obj) {
     const rec = { time: new Date().toISOString(), ...obj };
     fs.appendFileSync(this.journalPath, JSON.stringify(rec) + '\n');
+    this.journalDirty = true;
     const pnl = obj.event === 'CLOSE' && obj.entry ? ` 손익≈${((obj.price - obj.entry) * obj.qty * (obj.side === 'SELL' ? 1 : -1)).toFixed(2)} USDT` : '';
     this.info(`거래 ${obj.event} ${obj.symbol} ${obj.side} ${obj.qty} @ ${obj.price} (${obj.reason})${pnl}`);
   }
@@ -30,5 +31,36 @@ export class Reporter {
     const tmp = this.statePath + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(this.state, null, 2));
     fs.renameSync(tmp, this.statePath);
+    this.dirty = true;
+  }
+
+  // ---- optional remote copy (onpod bucket) so state + trade log survive server restarts ----
+  attachStore(store, prefix) { this.store = store; this.prefix = prefix.replace(/\/$/, ''); }
+
+  async restore() {
+    if (!this.store) return false;
+    const [state, journal] = await Promise.all([
+      this.store.get(`${this.prefix}/state.json`), this.store.get(`${this.prefix}/journal.jsonl`)]);
+    if (state) {
+      this.state = JSON.parse(state);
+      this.state.positions ??= {};
+      this.state.lastCandle ??= {};
+      fs.writeFileSync(this.statePath, JSON.stringify(this.state, null, 2));
+    }
+    if (journal) fs.writeFileSync(this.journalPath, journal);
+    return Boolean(state || journal);
+  }
+
+  // Upload state (and journal if it changed). Never throws: storage trouble must not stop trading.
+  async flush() {
+    if (!this.store || (!this.dirty && !this.journalDirty)) return;
+    try {
+      if (this.dirty) await this.store.put(`${this.prefix}/state.json`, JSON.stringify(this.state, null, 2));
+      if (this.journalDirty && fs.existsSync(this.journalPath))
+        await this.store.put(`${this.prefix}/journal.jsonl`, fs.readFileSync(this.journalPath, 'utf8'), 'application/x-ndjson');
+      this.dirty = false; this.journalDirty = false;
+    } catch (e) {
+      this.warn(`기록 저장소(버킷) 업로드 실패, 다음 틱에 재시도: ${e.message}`);
+    }
   }
 }

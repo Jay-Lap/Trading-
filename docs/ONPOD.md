@@ -3,6 +3,8 @@
 - 앱 이름: `binance-team-bot` · 형태: 봇/워커(`--shape worker`) · 플랜: **hobby (0.5vCPU·512MB, 상시 가동 최저가)**
 - 서버 위치: 대한민국 → 바이낸스 선물 시세 정상 접속 확인 (2026-11-09)
 - 비용: 약 ₩22/시간 ≈ **월 ₩16,000**. 고정 IP·디스크·DB 는 안 씀 (최소 비용)
+- 거래 기록·계좌 상태: 버킷 `trading-bot-records` 에 저장 (저장 ₩45/GB·월 — 기록은 몇 KB 라 사실상 0원)
+  - `trading-bot/<모드>/journal.jsonl` (거래 기록) · `trading-bot/<모드>/state.json` (가상계좌·손절가·일일손실)
 - 무료 티어는 봇에 쓸 수 없음 (30분 뒤 절전 → 다시 안 깨어남)
 
 ## CLI 준비 (윈도우 PowerShell)
@@ -22,7 +24,7 @@ onpod login --token <console.onpod.ai 에서 만든 API 키>
 | 잠시 멈추기 (컴퓨트 요금 0) | `onpod app pause binance-team-bot` |
 | 다시 켜기 | `onpod app resume binance-team-bot` |
 | 코드 바꾼 뒤 반영 | 저장소 폴더에서 `onpod app update binance-team-bot --build .` |
-| 완전히 지우기 | `onpod app rm binance-team-bot` |
+| 완전히 지우기 | `onpod app rm binance-team-bot` (버킷 기록은 남음 · 다시 배포 시 `--attach-bucket trading-bot-records` 로 이어감) |
 
 ## 데모 계좌(testnet)로 바꾸기
 
@@ -47,10 +49,13 @@ onpod app env set binance-team-bot MODE=testnet BINANCE_API_KEY=데모키 BINANC
 
 ## 알아둘 점
 
-- 서버가 재시작되면 컨테이너 안의 기록(`data/`)이 지워집니다(디스크 안 붙여서 최소 비용).
-  - 가상 돈 모드: 가상 계좌가 1000 USDT 로 새로 시작
-  - 데모/실계좌: 포지션·손절 주문은 바이낸스에 그대로 있음 → 봇이 다시 읽어 이어감
-    (손절 기록이 없으면 진입가 대비 2% 비상 손절을 새로 검)
+- 서버가 재시작돼도 버킷에서 기록·상태를 복원해 이어갑니다 (가상 계좌 포함).
+  매 판단 후, 거래 때, 종료 신호(SIGTERM) 때 버킷에 올립니다. 업로드가 실패해도 매매는 멈추지 않고 다음 틱에 재시도.
+- 거래 기록 내려받기:
+  ```
+  onpod exec binance-team-bot -- cat data/paper/journal.jsonl
+  ```
+  (모드에 따라 paper / testnet / live)
 - 긴급 정지: `onpod app pause binance-team-bot` 후 바이낸스 앱에서 직접 청산
   (pause 만 하면 포지션은 거래소 손절/익절 주문이 계속 보호)
 - PC 자동 실행(`docs/WINDOWS.md`)과 **동시에 돌리지 마세요** (같은 키로 두 봇이 주문)

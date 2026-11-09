@@ -11,12 +11,19 @@ import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor } f
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
 import { Reporter } from './bots/reporter.js';
+import { S3Store } from './lib/s3.js';
 
 const STOP_FILE = path.resolve(process.cwd(), 'STOP');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 export async function buildTeam(cfg, { reporter, dataClient, tradeClient } = {}) {
   const r = reporter ?? new Reporter(path.resolve(process.cwd(), 'data', cfg.mode));
+  const store = reporter ? null : S3Store.fromEnv();
+  if (store) {
+    r.attachStore(store, `trading-bot/${cfg.mode}`);
+    const restored = await r.restore();
+    r.info(`기록 저장소(버킷 ${store.bucket}) 연결 · ${restored ? '이전 기록 복원' : '새 기록 시작'}`);
+  }
   const tc = tradeClient ?? new BinanceClient({ baseUrl: baseUrlFor(cfg), apiKey: cfg.apiKey, apiSecret: cfg.apiSecret });
   // paper mode reads real (mainnet) public prices; testnet/live read from the exchange they trade on.
   const dc = dataClient ?? (cfg.mode === 'paper' ? new BinanceClient({ baseUrl: cfg.liveBaseUrl }) : tc);
@@ -51,6 +58,7 @@ export async function tick(team) {
       else await broker.cancelProtection(s);
     }
     r.save();
+    await r.flush();
     return 'STOPPED';
   }
 
@@ -128,6 +136,7 @@ export async function tick(team) {
     r.info(`가상 계좌: 평가금액 ${r.state.paper.equity} USDT (시작 ${r.state.paper.startUsdt}) · 보유 ${Object.entries(r.state.paper.pos).map(([k, p]) => `${k} ${p.qty > 0 ? '롱' : '숏'} ${Math.abs(p.qty)}@${p.entryPrice}`).join(', ') || '없음'}`);
   }
   r.save();
+  await r.flush();
   return 'OK';
 }
 
@@ -143,7 +152,13 @@ async function main() {
   const team = await buildTeam(cfg);
   team.r.info(`시세 출처: ${team.data.source === 'spot' ? '바이낸스 현물(대체)' : '바이낸스 선물'}`);
   team.r.info(`시작. 계좌 평가금액 ${(await team.broker.equity()).toFixed(2)} USDT. 긴급 정지: 이 폴더에 STOP 파일 생성.`);
-  process.on('SIGINT', () => { team.r.save(); team.r.info('Ctrl+C 로 종료. 열린 포지션은 거래소 손절 주문이 계속 보호합니다.'); process.exit(0); });
+  const shutdown = async (sig) => {
+    team.r.save(); await team.r.flush();
+    team.r.info(`${sig} 로 종료. 열린 포지션은 거래소 손절 주문이 계속 보호합니다.`);
+    process.exit(0);
+  };
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
   for (;;) {
     let status;
     try { status = await tick(team); } catch (e) { team.r.error(`틱 오류: ${e.message}`); }
