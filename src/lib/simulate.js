@@ -102,5 +102,5 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
   for (const s of Object.keys(pos)) close(s, lastClose[s], 'end');
   const wins = trades.filter(t => t.pnl > 0).length;
   return { startEquity, endEquity: equity, returnPct: (equity / startEquity - 1) * 100, trades: trades.length,
-    winRatePct: trades.length ? wins / trades.length * 100 : 0, maxDrawdownPct: maxDD * 100, blocked, perSymbol: perSym };
+    winRatePct: trades.length ? wins / trades.length * 100 : 0, maxDrawdownPct: maxDD * 100, blocked, perSymbol: perSym, list: trades };
 }
