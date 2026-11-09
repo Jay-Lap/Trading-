@@ -45,13 +45,28 @@ export function committeeSignal(candles, p) {
   const base = { price: last.close, atr: a, candleTime: last.openTime, conviction, adx: strength, votes };
   // Committee turned against an open position → close that side.
   const closeSide = conviction <= -th / 2 ? 'LONG' : conviction >= th / 2 ? 'SHORT' : null;
-  if (Math.abs(conviction) >= th && strength >= adxMin) {
+  // Higher-timeframe committee (e.g. daily) must agree: only trade with the big picture.
+  const htf = p.htfConviction;
+  let htfBlock = '';
+  if (typeof htf === 'number' && Math.abs(conviction) >= th && strength >= adxMin) {
+    const need = p.htfMin ?? 0;
+    if (conviction > 0 && !(htf > need)) htfBlock = `상위(${p.htfInterval || '1d'}) 위원회 ${htf.toFixed(2)} → 롱 보류`;
+    if (conviction < 0 && !(htf < -need)) htfBlock = `상위(${p.htfInterval || '1d'}) 위원회 ${htf.toFixed(2)} → 숏 보류`;
+  }
+  const tpMult = p.takeProfitAtrMult;
+  if (!htfBlock && Math.abs(conviction) >= th && strength >= adxMin) {
     const L = conviction > 0;
     return { ...base, closeSide, action: L ? 'LONG' : 'SHORT',
       stop: L ? last.close - p.stopAtrMult * a : last.close + p.stopAtrMult * a,
-      takeProfit: L ? last.close + p.takeProfitAtrMult * a : last.close - p.takeProfitAtrMult * a,
-      reason: `위원회 확신 ${conviction.toFixed(2)} (ADX ${strength.toFixed(0)}) ${summary}` };
+      takeProfit: tpMult > 0 ? (L ? last.close + tpMult * a : last.close - tpMult * a) : null,
+      reason: `위원회 확신 ${conviction.toFixed(2)} (ADX ${strength.toFixed(0)})${typeof htf === 'number' ? ` · 상위 ${htf.toFixed(2)}` : ''} ${summary}` };
   }
   return { ...base, closeSide, action: 'HOLD', trend: conviction > 0 ? 'UP' : 'DOWN',
-    reason: `위원회 확신 ${conviction.toFixed(2)} / 기준 ±${th} (ADX ${strength.toFixed(0)}) ${summary}` };
+    reason: htfBlock || `위원회 확신 ${conviction.toFixed(2)} / 기준 ±${th} (ADX ${strength.toFixed(0)}) ${summary}` };
+}
+
+// Conviction only (for higher-timeframe confirmation). Returns NaN if not enough candles.
+export function committeeConviction(candles) {
+  if (candles.length < 230) return NaN;
+  return blend(analysts(candles).votes);
 }

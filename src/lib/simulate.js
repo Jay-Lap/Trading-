@@ -18,7 +18,7 @@ export function backtest(candles, cfg, filters, { startEquity = 1000, window = 5
     if (pos) {
       const long = pos.qty > 0;
       const hitStop = long ? c.low <= pos.stop : c.high >= pos.stop;
-      const hitTp = long ? c.high >= pos.tp : c.low <= pos.tp;
+      const hitTp = pos.tp != null && (long ? c.high >= pos.tp : c.low <= pos.tp);
       if (hitStop) closePos(pos.stop, 'stop', c);          // pessimistic: stop first if both touched
       else if (hitTp) closePos(pos.tp, 'takeProfit', c);
     }
@@ -52,7 +52,15 @@ export function backtest(candles, cfg, filters, { startEquity = 1000, window = 5
 // series: { SYMBOL: candles[] }, filtersBy: { SYMBOL: filters }
 import { allowEntry, rankCandidates } from '../bots/risk.js';
 
-export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, window = 500 } = {}) {
+// htf: { SYMBOL: [{ closeTime, conviction }] } sorted — higher-timeframe committee, used only once closed.
+function htfAt(list, decisionTime) {
+  if (!list) return undefined;
+  let lo = 0, hi = list.length - 1, ans;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (list[m].closeTime < decisionTime) { ans = list[m]; lo = m + 1; } else hi = m - 1; }
+  return ans && Number.isFinite(ans.conviction) ? ans.conviction : undefined;
+}
+
+export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, window = 500, htf = null } = {}) {
   const syms = Object.keys(series);
   const idx = Object.fromEntries(syms.map(s => [s, new Map(series[s].map((c, i) => [c.openTime, i]))]));
   const times = [...new Set(syms.flatMap(s => series[s].map(c => c.openTime)))].sort((a, b) => a - b);
@@ -78,9 +86,10 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
       if (p) {
         const L = p.qty > 0;
         if (L ? c.low <= p.stop : c.high >= p.stop) close(s, p.stop, 'stop');
-        else if (L ? c.high >= p.tp : c.low <= p.tp) close(s, p.tp, 'takeProfit');
+        else if (p.tp != null && (L ? c.high >= p.tp : c.low <= p.tp)) close(s, p.tp, 'takeProfit');
       }
-      const sig = generateSignal(series[s].slice(Math.max(0, i + 1 - window), i + 1), cfg);
+      const hc = htf ? htfAt(htf[s], c.closeTime + 1) : undefined;
+      const sig = generateSignal(series[s].slice(Math.max(0, i + 1 - window), i + 1), hc === undefined ? cfg : { ...cfg, htfConviction: hc });
       if (pos[s] && sig.closeSide && (pos[s].qty > 0 ? 'LONG' : 'SHORT') === sig.closeSide) close(s, c.close, 'committee');
       if (sig.action === 'HOLD') continue;
       if (pos[s] && (pos[s].qty > 0) === (sig.action === 'LONG')) continue;
@@ -103,4 +112,10 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
   const wins = trades.filter(t => t.pnl > 0).length;
   return { startEquity, endEquity: equity, returnPct: (equity / startEquity - 1) * 100, trades: trades.length,
     winRatePct: trades.length ? wins / trades.length * 100 : 0, maxDrawdownPct: maxDD * 100, blocked, perSymbol: perSym, list: trades };
+}
+
+// Precompute higher-timeframe committee conviction for each closed HTF candle.
+import { committeeConviction } from '../bots/committee.js';
+export function htfSeries(candles, window = 500) {
+  return candles.map((c, i) => ({ closeTime: c.closeTime, conviction: committeeConviction(candles.slice(Math.max(0, i + 1 - window), i + 1)) }));
 }

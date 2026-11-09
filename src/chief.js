@@ -7,6 +7,7 @@ import { loadConfig, baseUrlFor } from './lib/config.js';
 import { BinanceClient } from './lib/binanceClient.js';
 import { DataBot, SpotDataBot, SPOT_DATA_URL } from './bots/data.js';
 import { generateSignal } from './bots/strategy.js';
+import { committeeConviction } from './bots/committee.js';
 import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor } from './bots/risk.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
@@ -85,7 +86,12 @@ export async function tick(team) {
       if (!last || r.state.lastCandle[symbol] === last.openTime) continue; // only act once per closed candle
       r.state.lastCandle[symbol] = last.openTime;
 
-      const sig = generateSignal(candles, cfg);
+      let sCfg = cfg;
+      if (cfg.htfInterval && cfg.strategy === 'committee') {
+        const hc = committeeConviction(await data.candles(symbol, cfg.htfInterval, 500));
+        if (Number.isFinite(hc)) sCfg = { ...cfg, htfConviction: hc };
+      }
+      const sig = generateSignal(candles, sCfg);
       if (pos && sig.closeSide && open[symbol] === sig.closeSide) {
         await exit.close(symbol, pos, f, `위원회 반대 전환 (확신 ${sig.conviction.toFixed(2)})`); pos = null; delete open[symbol];
       }

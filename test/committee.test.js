@@ -55,3 +55,16 @@ test('portfolio backtest never holds more than the limits', async () => {
   const r1 = backtestPortfolio(series, { ...cfg, strategy: 'committee', maxSameDirection: 1 }, f);
   assert.ok(r1.blocked >= r.blocked);
 });
+
+test('no take-profit mode and higher-timeframe veto', () => {
+  const c = { ...cfg, strategy: 'committee', takeProfitAtrMult: 0 };
+  const up = generateSignal(trend(260, 0.004), c);
+  assert.equal(up.action, 'LONG');
+  assert.equal(up.takeProfit, null);
+  const vetoed = generateSignal(trend(260, 0.004), { ...c, htfConviction: -0.6 });
+  assert.equal(vetoed.action, 'HOLD');
+  assert.ok(/상위/.test(vetoed.reason));
+  assert.equal(generateSignal(trend(260, 0.004), { ...c, htfConviction: 0.4 }).action, 'LONG');
+  const r = backtest(trend(400, 0.003), c, filters); // must not treat null TP as hit
+  assert.ok(Number.isFinite(r.endEquity));
+});
