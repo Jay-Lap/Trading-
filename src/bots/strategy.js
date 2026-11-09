@@ -1,8 +1,10 @@
 // 2) STRATEGY bot — EMA crossover trend-following with ATR-based stop/target.
 // Returns a signal on the LAST CLOSED candle only. It does not size or place anything.
 import { ema, atr, adx } from '../lib/indicators.js';
+import { committeeSignal } from './committee.js';
 
 export function generateSignal(candles, p) {
+  if (p.strategy === 'committee') return committeeSignal(candles, p);
   const trendEma = p.trendEma || 0, adxMin = p.adxMin || 0, adxPeriod = p.adxPeriod || 14;
   const need = Math.max(p.emaSlow, p.atrPeriod, trendEma + 5, adxMin ? adxPeriod * 2 + 1 : 0) + 2;
   if (candles.length < need) return { action: 'HOLD', reason: `캔들 부족 (${candles.length}/${need})` };

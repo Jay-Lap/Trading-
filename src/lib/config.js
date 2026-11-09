@@ -29,6 +29,9 @@ export function loadConfig({ env = true } = {}) {
     atrPeriod: num('ATR_PERIOD', 14),
     stopAtrMult: num('STOP_ATR_MULT', 2),
     takeProfitAtrMult: num('TAKE_PROFIT_ATR_MULT', 3),
+    strategy: (process.env.STRATEGY || 'ema').toLowerCase(),
+    committeeThreshold: num('COMMITTEE_THRESHOLD', 0.5),
+    committeeAdxMin: num('COMMITTEE_ADX_MIN', 20),
     trendEma: num('TREND_EMA', 0),
     adxPeriod: num('ADX_PERIOD', 14),
     adxMin: num('ADX_MIN', 0),
@@ -51,6 +54,8 @@ export function validateConfig(cfg) {
   if (cfg.riskPerTradePct <= 0 || cfg.riskPerTradePct > 5) errs.push('RISK_PER_TRADE_PCT 는 0 초과 5 이하여야 합니다');
   if (cfg.dailyMaxLossPct <= 0 || cfg.dailyMaxLossPct > 20) errs.push('DAILY_MAX_LOSS_PCT 는 0 초과 20 이하여야 합니다');
   if (cfg.maxNotionalUsdt <= 0) errs.push('MAX_NOTIONAL_USDT 는 0보다 커야 합니다');
+  if (!['ema', 'committee'].includes(cfg.strategy)) errs.push('STRATEGY 는 ema 또는 committee 여야 합니다');
+  if (cfg.committeeThreshold <= 0 || cfg.committeeThreshold > 1) errs.push('COMMITTEE_THRESHOLD 는 0 초과 1 이하');
   if (cfg.emaFast >= cfg.emaSlow) errs.push('EMA_FAST 는 EMA_SLOW 보다 작아야 합니다');
   if (cfg.stopAtrMult <= 0 || cfg.takeProfitAtrMult <= 0) errs.push('ATR 배수는 0보다 커야 합니다');
   if (cfg.emergencyStopPct <= 0 || cfg.emergencyStopPct >= 100 / cfg.leverage / 2)

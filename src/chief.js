@@ -65,6 +65,9 @@ export async function tick(team) {
       r.state.lastCandle[symbol] = last.openTime;
 
       const sig = generateSignal(candles, cfg);
+      if (pos && sig.closeSide && (pos.qty > 0 ? 'LONG' : 'SHORT') === sig.closeSide) {
+        await exit.close(symbol, pos, f, `위원회 반대 전환 (확신 ${sig.conviction.toFixed(2)})`); pos = null;
+      }
       if (sig.action === 'HOLD') { r.info(`${symbol} 대기: ${sig.reason}${sig.trend ? ` (추세 ${sig.trend})` : ''} 가격 ${sig.price ?? '-'}`); continue; }
 
       const wantLong = sig.action === 'LONG';

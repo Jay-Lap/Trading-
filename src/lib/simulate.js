@@ -23,6 +23,7 @@ export function backtest(candles, cfg, filters, { startEquity = 1000, window = 5
       else if (hitTp) closePos(pos.tp, 'takeProfit', c);
     }
     const sig = generateSignal(candles.slice(Math.max(0, i + 1 - window), i + 1), cfg);
+    if (pos && sig.closeSide && (pos.qty > 0 ? 'LONG' : 'SHORT') === sig.closeSide) closePos(c.close, 'committee', c);
     if (sig.action !== 'HOLD') {
       const wantLong = sig.action === 'LONG';
       if (pos && (pos.qty > 0) !== wantLong) closePos(c.close, 'reverse', c);
