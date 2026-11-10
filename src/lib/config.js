@@ -37,6 +37,8 @@ export function loadConfig({ env = true } = {}) {
     trendEma: num('TREND_EMA', 0),
     adxPeriod: num('ADX_PERIOD', 14),
     adxMin: num('ADX_MIN', 0),
+    autoTiers: ['1', 'true', 'yes', 'on'].includes((process.env.AUTO_TIERS || '').toLowerCase()),
+    expandSymbols: (process.env.EXPAND_SYMBOLS || 'BTCUSDT,ETHUSDT,SOLUSDT').split(',').map(s => s.trim().toUpperCase()).filter(Boolean),
     pollSeconds: num('POLL_SECONDS', 20),
     riskPerTradePct: num('RISK_PER_TRADE_PCT', 1),
     leverage: num('LEVERAGE', 3),

@@ -64,3 +64,14 @@ onpod app env set binance-team-bot MODE=testnet BINANCE_API_KEY=데모키 BINANC
 - 긴급 정지: `onpod app pause binance-team-bot` 후 바이낸스 앱에서 직접 청산
   (pause 만 하면 포지션은 거래소 손절/익절 주문이 계속 보호)
 - PC 자동 실행(`docs/WINDOWS.md`)과 **동시에 돌리지 마세요** (같은 키로 두 봇이 주문)
+
+## 자동 단계 (AUTO_TIERS=1, 2026-11-10 적용)
+
+| 단계 | 조건 | 설정 |
+|---|---|---|
+| 빨리 키우기 | 잔고 50 USDT 미만 | 위험 5% · 진입 최대 20 USDT · SOL |
+| 안정권 | 잔고가 한 번이라도 50 이상 | 위험 2% · 진입 최대 = 잔고 · SOL |
+| 확장 | 잔고가 한 번이라도 300 이상 | 위험 2% · BTC·ETH·SOL · 동시 3개(같은 방향 2개) |
+
+- 한 번 올라간 단계는 내려가지 않음 (state.json 의 tierHigh). 전환 시 로그에 `자동 단계 전환` 이 찍힘.
+- 백테스트 (22.99 USDT 시작, 3년): 고정 5% 54.5 → 자동 단계 57.6 USDT, 최대 낙폭 21.8%.

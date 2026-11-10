@@ -50,7 +50,7 @@ export function backtest(candles, cfg, filters, { startEquity = 1000, window = 5
 
 // Multi-symbol backtest sharing ONE account, with the same ranking + portfolio limits as the live chief.
 // series: { SYMBOL: candles[] }, filtersBy: { SYMBOL: filters }
-import { allowEntry, rankCandidates } from '../bots/risk.js';
+import { allowEntry, rankCandidates, applyTier } from '../bots/risk.js';
 
 // htf: { SYMBOL: [{ closeTime, conviction }] } sorted — higher-timeframe committee, used only once closed.
 function htfAt(list, decisionTime) {
@@ -76,6 +76,7 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
   };
   const lastClose = {};
   let lastTime = 0;
+  const tierState = {};
   for (const t of times) {
     const cands = [];
     for (const s of syms) {
@@ -97,10 +98,12 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
       if (pos[s]) close(s, c.close, 'reverse');
       if (t >= tradeFrom) cands.push({ symbol: s, sig, close: c.close, time: c.closeTime });
     }
+    const eff = cfg.autoTiers ? applyTier(cfg, equity, tierState).cfg : cfg;
     for (const { symbol: s, sig, close: px, time: ct } of rankCandidates(cands)) {
+      if (cfg.autoTiers && eff.symbols && !eff.symbols.includes(s)) continue;
       const open = Object.fromEntries(Object.entries(pos).map(([k, p]) => [k, p.qty > 0 ? 'LONG' : 'SHORT']));
-      if (!allowEntry(sig.action, open, cfg).ok) { blocked++; continue; }
-      const z = sizePosition({ signal: sig, equity, filters: filtersBy[s], cfg });
+      if (!allowEntry(sig.action, open, eff).ok) { blocked++; continue; }
+      const z = sizePosition({ signal: sig, equity, filters: filtersBy[s], cfg: eff });
       if (!z.ok) continue;
       equity -= z.qty * px * FEE;
       pos[s] = { qty: sig.action === 'LONG' ? z.qty : -z.qty, entry: px, stop: sig.stop, tp: sig.takeProfit, time: ct };

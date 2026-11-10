@@ -8,7 +8,7 @@ import { BinanceClient } from './lib/binanceClient.js';
 import { DataBot, SpotDataBot, SPOT_DATA_URL } from './bots/data.js';
 import { generateSignal } from './bots/strategy.js';
 import { committeeConviction } from './bots/committee.js';
-import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor } from './bots/risk.js';
+import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor, applyTier } from './bots/risk.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
 import { Reporter } from './bots/reporter.js';
@@ -30,12 +30,13 @@ export async function buildTeam(cfg, { reporter, dataClient, tradeClient } = {})
   const dc = dataClient ?? (cfg.mode === 'paper' ? new BinanceClient({ baseUrl: cfg.liveBaseUrl }) : tc);
   let data = new DataBot(dc);
   let filters;
-  try { filters = await data.symbolFilters(cfg.symbols); }
+  const allSymbols = cfg.autoTiers ? [...new Set([...cfg.symbols, ...cfg.expandSymbols])] : cfg.symbols;
+  try { filters = await data.symbolFilters(allSymbols); }
   catch (e) {
     if (cfg.mode !== 'paper' || dataClient) throw e;
     r.warn(`선물 시세 접속 불가 (${e.message}) → 페이퍼 모드는 현물 시세(${SPOT_DATA_URL})로 대체`);
     data = new SpotDataBot(new BinanceClient({ baseUrl: SPOT_DATA_URL }));
-    filters = await data.symbolFilters(cfg.symbols);
+    filters = await data.symbolFilters(allSymbols);
   }
   let broker;
   if (cfg.mode === 'paper') {
@@ -44,16 +45,17 @@ export async function buildTeam(cfg, { reporter, dataClient, tradeClient } = {})
     // drop stop records for symbols the fake account does not hold
     for (const s of Object.keys(r.state.positions)) if (!r.state.paper.pos[s]) delete r.state.positions[s];
   } else broker = new ExchangeBroker(tc, r);
-  await broker.init(cfg.symbols, cfg.leverage);
-  return { cfg, r, data, broker, filters, exit: new ExitBot(broker, r, cfg) };
+  await broker.init(allSymbols, cfg.leverage);
+  return { cfg, r, data, broker, filters, allSymbols, exit: new ExitBot(broker, r, cfg) };
 }
 
 export async function tick(team) {
-  const { cfg, r, data, broker, filters, exit } = team;
+  const { r, data, broker, filters, exit } = team;
+  let cfg = team.cfg;
 
   if (fs.existsSync(STOP_FILE)) {
     r.warn('STOP 파일 감지 → 모든 포지션 청산 후 종료');
-    for (const s of cfg.symbols) {
+    for (const s of team.allSymbols ?? cfg.symbols) {
       const pos = await broker.position(s);
       if (pos) await exit.close(s, pos, filters[s], '긴급 정지(STOP 파일)');
       else await broker.cancelProtection(s);
@@ -64,6 +66,11 @@ export async function tick(team) {
   }
 
   const equity = await broker.equity();
+  if (cfg.autoTiers) {
+    const t = applyTier(cfg, equity, r.state);
+    if (t.changed) r.warn(`자동 단계 전환 → ${t.tier.name} (잔고 ${equity.toFixed(2)} USDT): 위험 ${t.cfg.riskPerTradePct}% · 종목 ${t.cfg.symbols.join(',')}`);
+    cfg = t.cfg;
+  }
   const daily = checkDailyLimit(r.state, equity, cfg);
   if (daily.halted) r.warn(`일일 손실 ${daily.lossPct.toFixed(2)}% ≥ 한도 ${cfg.dailyMaxLossPct}% → 오늘(UTC) 신규 진입 중단`);
 

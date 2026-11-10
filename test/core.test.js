@@ -111,3 +111,18 @@ test('volatility filter vetoes very wide stops', () => {
   assert.ok(/변동성/.test(sizePosition({ signal: sig, equity: 1000, filters, cfg: { ...cfg, maxStopPct: 6 } }).reason));
   assert.equal(sizePosition({ signal: { price: 100, stop: 95 }, equity: 1000, filters, cfg: { ...cfg, maxStopPct: 6 } }).ok, true);
 });
+
+test('auto tiers: aggressive below 50, stable after, expand at 300, never step down', async () => {
+  const { applyTier } = await import('../src/bots/risk.js');
+  const c = { ...cfg, autoTiers: true, symbols: ['SOLUSDT'], expandSymbols: ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'] };
+  const st = {};
+  let t = applyTier(c, 23, st);
+  assert.equal(t.cfg.riskPerTradePct, 5); assert.equal(t.cfg.maxNotionalUsdt, 20); assert.deepEqual(t.cfg.symbols, ['SOLUSDT']);
+  t = applyTier(c, 51, st);
+  assert.equal(t.changed, true); assert.equal(t.cfg.riskPerTradePct, 2); assert.equal(t.cfg.maxNotionalUsdt, 51);
+  t = applyTier(c, 40, st); // drawdown after reaching stable: stays stable
+  assert.equal(t.cfg.riskPerTradePct, 2); assert.equal(t.changed, false);
+  t = applyTier(c, 320, st);
+  assert.deepEqual(t.cfg.symbols, ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']); assert.equal(t.cfg.maxOpenPositions, 3);
+  assert.equal(applyTier({ ...c, autoTiers: false }, 1000, {}).cfg.riskPerTradePct, cfg.riskPerTradePct);
+});
