@@ -127,3 +127,21 @@ test('paper account persists across restarts and catches up a stop hit while asl
   const j = fs.readFileSync(path.join(dir, 'journal.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.equal(j.at(-1).price, 105);
 });
+
+test('e2e: stop/TP filled on the exchange → bot clears orphan orders and record', async () => {
+  const all = vCandles(80);
+  const { generateSignal } = await import('../src/bots/strategy.js');
+  let n = 20; while (generateSignal(all.slice(0, n), cfg).action !== 'LONG') n++;
+  const fb = fakeBinance(all.slice(0, n));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-'));
+  const c = { ...cfg, mode: 'testnet', apiKey: 'k', apiSecret: 's' };
+  const client = new BinanceClient({ baseUrl: 'https://fake', apiKey: 'k', apiSecret: 's', fetchImpl: fb.fetchImpl });
+  const team = await buildTeam(c, { reporter: new Reporter(dir, { quiet: true }), tradeClient: client, dataClient: client });
+  await tick(team);
+  assert.ok(fb.st.pos > 0 && fb.st.algo.length === 2);
+  fb.st.pos = 0; // take-profit filled by Binance; the stop order is still sitting there
+  fb.st.algo = fb.st.algo.filter(o => o.type === 'STOP_MARKET');
+  await tick(team);
+  assert.equal(fb.st.algo.length, 0, 'orphaned stop must be cancelled');
+  assert.equal(team.r.state.positions.BTCUSDT, undefined, 'stale record must be cleared');
+});

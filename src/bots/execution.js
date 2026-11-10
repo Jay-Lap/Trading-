@@ -3,6 +3,18 @@ import { fmt, roundToStep } from '../lib/math.js';
 
 const TAKER_FEE = 0.0005;
 
+// Summarize Binance userTrades rows: average price, quantity, commission, realized PnL.
+export function summarizeFills(rows = []) {
+  let qty = 0, notional = 0, fee = 0, realizedPnl = 0;
+  const feeAssets = new Set();
+  for (const t of rows) {
+    const q = Number(t.qty); qty += q; notional += q * Number(t.price);
+    fee += Number(t.commission || 0); realizedPnl += Number(t.realizedPnl || 0);
+    if (t.commissionAsset) feeAssets.add(t.commissionAsset);
+  }
+  return { qty, avgPrice: qty ? notional / qty : 0, fee, realizedPnl, feeAsset: [...feeAssets].join(',') || 'USDT', count: rows.length };
+}
+
 export class ExchangeBroker {
   constructor(client, log) { this.c = client; this.log = log; this.kind = 'exchange'; }
 
@@ -79,6 +91,17 @@ export class ExchangeBroker {
     return legacy.some(isStop);
   }
 
+  // Fills of one order, or of all trades since startTime (ms).
+  async fills(symbol, { orderId, startTime, side } = {}) {
+    const rows = await this.c.signed('GET', '/fapi/v1/userTrades', orderId ? { symbol, orderId } : { symbol, startTime, limit: 100 });
+    return summarizeFills(side ? rows.filter(t => t.side === side) : rows);
+  }
+
+  async funding(startTime, endTime) {
+    const rows = await this.c.signed('GET', '/fapi/v1/income', { incomeType: 'FUNDING_FEE', startTime, endTime, limit: 1000 });
+    return rows.reduce((a, x) => a + Number(x.income), 0);
+  }
+
   async cancelProtection(symbol) {
     for (const path of ['/fapi/v1/algoOpenOrders', '/fapi/v1/allOpenOrders']) {
       try { await this.c.signed('DELETE', path, { symbol }); } catch (e) { /* nothing open is fine */ }
@@ -119,7 +142,10 @@ export class PaperBroker {
     const price = fillPrice ?? await this.#price(symbol);
     const signed = side === 'BUY' ? qty : -qty;
     const cur = this.pos[symbol];
-    this.cash -= qty * price * TAKER_FEE;
+    const fee = qty * price * TAKER_FEE;
+    const realizedPnl = cur && Math.sign(cur.qty) !== Math.sign(signed) ? (price - cur.entryPrice) * Math.min(qty, Math.abs(cur.qty)) * Math.sign(cur.qty) : 0;
+    this.lastFill = { qty, avgPrice: price, fee, realizedPnl, feeAsset: 'USDT', count: 1 };
+    this.cash -= fee;
     if (!cur) {
       if (reduceOnly) return { status: 'REJECTED' };
       this.pos[symbol] = { qty: signed, entryPrice: price };
@@ -137,4 +163,6 @@ export class PaperBroker {
   async placeProtection(symbol, _side, stop, takeProfit) { this.prot[symbol] = { stop, takeProfit }; return { stop: { via: 'paper' } }; }
   async hasStop(symbol) { return Boolean(this.prot[symbol]?.stop); }
   async cancelProtection(symbol) { delete this.prot[symbol]; }
+  async fills() { return this.lastFill ?? summarizeFills([]); }
+  async funding() { return 0; }
 }

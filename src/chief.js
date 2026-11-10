@@ -8,7 +8,8 @@ import { BinanceClient } from './lib/binanceClient.js';
 import { DataBot, SpotDataBot, SPOT_DATA_URL } from './bots/data.js';
 import { generateSignal } from './bots/strategy.js';
 import { committeeConviction } from './bots/committee.js';
-import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor, applyTier } from './bots/risk.js';
+import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor, applyTier, liquidityDrop, TIERS } from './bots/risk.js';
+import { buildDailyReport } from './bots/report.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
 import { Reporter } from './bots/reporter.js';
@@ -71,6 +72,7 @@ export async function tick(team) {
     if (t.changed) r.warn(`자동 단계 전환 → ${t.tier.name} (잔고 ${equity.toFixed(2)} USDT): 위험 ${t.cfg.riskPerTradePct}% · 종목 ${t.cfg.symbols.join(',')}`);
     cfg = t.cfg;
   }
+  await maybeDailyReport(team, cfg, equity);
   const daily = checkDailyLimit(r.state, equity, cfg);
   if (daily.halted) r.warn(`일일 손실 ${daily.lossPct.toFixed(2)}% ≥ 한도 ${cfg.dailyMaxLossPct}% → 오늘(UTC) 신규 진입 중단`);
 
@@ -81,11 +83,17 @@ export async function tick(team) {
     const f = filters[symbol];
     try {
       let pos = await broker.position(symbol);
+      if (!pos && broker.kind === 'exchange' && r.state.positions[symbol]) await exit.syncExchangeClosed(symbol);
       if (pos && broker.kind === 'paper' && r.state.paper.lastCheck) {
         const since = await data.candlesSince(symbol, '5m', r.state.paper.lastCheck);
         if (await exit.paperCatchUp(symbol, pos, f, since)) pos = null;
       }
       if (pos && await exit.manage(symbol, pos, f)) pos = null;
+      if (pos && cfg.liqExit && Date.now() - (r.state.liqCheck?.[symbol] ?? 0) > 15 * 60e3) {
+        (r.state.liqCheck ??= {})[symbol] = Date.now();
+        const lq = liquidityDrop(await data.candles(symbol, '1h', 40), cfg.liqDropPct);
+        if (lq.drop) { await exit.close(symbol, pos, f, `유동성 급감: 최근 6시간 거래량이 평소의 ${lq.ratio.toFixed(0)}%`); pos = null; }
+      }
       if (pos) open[symbol] = pos.qty > 0 ? 'LONG' : 'SHORT';
 
       const candles = await data.candles(symbol, cfg.interval);
@@ -125,6 +133,7 @@ export async function tick(team) {
 
       const side = sig.action === 'LONG' ? 'BUY' : 'SELL';
       // Record intended stop BEFORE ordering, so a crash mid-way still leaves a stop to enforce.
+      await broker.cancelProtection(symbol); // clear any orphaned stop/TP from a previous position
       r.state.positions[symbol] = { stop: sig.stop, takeProfit: sig.takeProfit, side, signalPrice: sig.signalPrice ?? sig.price, openedAt: new Date().toISOString() };
       r.save();
       let res;
@@ -134,8 +143,13 @@ export async function tick(team) {
         throw e;
       }
       open[symbol] = sig.action;
-      const fill = Number(res.avgPrice) || sig.price;
-      r.trade({ event: 'OPEN', symbol, side, qty: sizing.qty, price: fill, reason: sig.reason, stop: sig.stop, takeProfit: sig.takeProfit, riskUsdt: +sizing.riskUsdt.toFixed(2) });
+      let fi = null;
+      try { fi = await broker.fills(symbol, { orderId: res.orderId }); } catch { /* fee unknown */ }
+      const fill = (fi?.qty ? fi.avgPrice : 0) || Number(res.avgPrice) || sig.price;
+      const slippagePct = (side === 'BUY' ? fill - sig.price : sig.price - fill) / sig.price * 100; // + = worse than the decision price
+      Object.assign(r.state.positions[symbol], { entry: fill, qty: sizing.qty, fee: fi?.fee ?? null });
+      r.trade({ event: 'OPEN', symbol, side, qty: sizing.qty, price: +fill.toFixed(6), decisionPrice: sig.price, signalPrice: sig.signalPrice ?? sig.price,
+        slippagePct: +slippagePct.toFixed(4), fee: fi ? +fi.fee.toFixed(4) : null, reason: sig.reason, stop: sig.stop, takeProfit: sig.takeProfit, riskUsdt: +sizing.riskUsdt.toFixed(2) });
 
       const now = await broker.position(symbol);
       if (now) await exit.manage(symbol, now, f); // places exchange stop/TP, or flattens if it can't
@@ -151,6 +165,29 @@ export async function tick(team) {
   r.save();
   await r.flush();
   return 'OK';
+}
+
+// CHIEF: once per UTC day (first tick after 00:00 UTC = 09:00 KST) write a report for the day that ended.
+async function maybeDailyReport(team, cfg, equity) {
+  const { r, broker } = team;
+  const today = new Date().toISOString().slice(0, 10);
+  const prev = r.state.reportDay;
+  r.state.reportDay = today;
+  if (!prev || prev === today) return;
+  try {
+    const start = Date.parse(prev + 'T00:00:00Z'), end = start + 86400e3;
+    let funding = 0;
+    try { funding = await broker.funding(start, end); } catch { /* ignore */ }
+    const positions = [];
+    for (const s of team.allSymbols ?? cfg.symbols) {
+      const p = await broker.position(s);
+      if (p) positions.push({ symbol: s, ...p, stop: r.state.positions[s]?.stop?.toFixed?.(4), takeProfit: r.state.positions[s]?.takeProfit?.toFixed?.(4) });
+    }
+    const tierName = cfg.autoTiers ? TIERS[r.state.tierHigh ?? 0].name : '';
+    const rep = buildDailyReport({ day: prev, journal: r.readJournal(), equityStart: r.state.dayStartEquity, equityEnd: equity, positions, funding, tierName, mode: cfg.mode });
+    await r.saveReport(prev, rep.md);
+    r.info(`일일 보고서 ${prev}: 손실 ${rep.losses}건 · 수익 ${rep.wins}건 · 실현 순손익 ${rep.net >= 0 ? '+' : ''}${rep.net.toFixed(3)} USDT (reports/${prev}.md)`);
+  } catch (e) { r.warn(`일일 보고서 생성 실패: ${e.message}`); }
 }
 
 async function main() {

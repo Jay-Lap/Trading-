@@ -39,6 +39,8 @@ export function loadConfig({ env = true } = {}) {
     adxMin: num('ADX_MIN', 0),
     autoTiers: ['1', 'true', 'yes', 'on'].includes((process.env.AUTO_TIERS || '').toLowerCase()),
     expandSymbols: (process.env.EXPAND_SYMBOLS || 'BTCUSDT,ETHUSDT,SOLUSDT').split(',').map(s => s.trim().toUpperCase()).filter(Boolean),
+    liqExit: !['0', 'false', 'off', 'no'].includes((process.env.LIQ_EXIT || '1').toLowerCase()),
+    liqDropPct: num('LIQ_DROP_PCT', 20),
     pollSeconds: num('POLL_SECONDS', 20),
     riskPerTradePct: num('RISK_PER_TRADE_PCT', 1),
     leverage: num('LEVERAGE', 3),

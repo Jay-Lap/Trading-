@@ -9,8 +9,32 @@ export class ExitBot {
     await this.b.cancelProtection(symbol);
     const meta = this.r.state.positions[symbol];
     delete this.r.state.positions[symbol];
-    this.r.trade({ event: 'CLOSE', symbol, side, qty: Math.abs(pos.qty), price: Number(res.avgPrice) || pos.markPrice, entry: pos.entryPrice, reason, meta });
+    let fill = null;
+    try { fill = await this.b.fills(symbol, { orderId: res.orderId }); } catch { /* recorded without fee */ }
+    const price = (fill?.qty ? fill.avgPrice : 0) || Number(res.avgPrice) || pos.markPrice;
+    const qty = Math.abs(pos.qty);
+    const pnl = fill?.count ? fill.realizedPnl : (price - pos.entryPrice) * qty * (pos.qty > 0 ? 1 : -1);
+    this.r.trade({ event: 'CLOSE', symbol, side, qty, price, entry: pos.entryPrice, pnl: +pnl.toFixed(4), fee: fill ? +fill.fee.toFixed(4) : null, reason, meta });
     return res;
+  }
+
+  // EXCHANGE: the stop or take-profit may have filled on Binance while the bot only watched.
+  // Detect it (we have a record but no position), journal the real fill, and clear the leftover order.
+  async syncExchangeClosed(symbol) {
+    const meta = this.r.state.positions[symbol];
+    if (!meta) return null;
+    const closeSide = meta.side === 'SELL' ? 'BUY' : 'SELL';
+    let fill = null;
+    try { fill = await this.b.fills(symbol, { startTime: Date.parse(meta.openedAt) || undefined, side: closeSide }); } catch (e) { this.r.warn(`${symbol} 체결 내역 조회 실패: ${e.message}`); }
+    await this.b.cancelProtection(symbol); // e.g. take-profit hit → remove the now-orphaned stop order
+    delete this.r.state.positions[symbol];
+    if (!fill || !fill.count) { this.r.warn(`${symbol} 기록상 포지션이 있었지만 거래소에 없음 (청산 체결 내역 없음) → 기록 정리`); return null; }
+    const px = fill.avgPrice;
+    const near = (a, b) => b && Math.abs(a - b) / b < 0.006;
+    const reason = near(px, meta.stop) ? '거래소 손절 체결' : near(px, meta.takeProfit) ? '거래소 익절 체결' : '거래소에서 청산 (수동 등)';
+    this.r.trade({ event: 'CLOSE', symbol, side: closeSide, qty: fill.qty, price: +px.toFixed(6), entry: meta.entry ?? null,
+      pnl: +fill.realizedPnl.toFixed(4), fee: +fill.fee.toFixed(4), reason, meta });
+    return fill;
   }
 
   // PAPER ONLY: the bot may sleep for hours between runs. Replay 5m candles since the last check

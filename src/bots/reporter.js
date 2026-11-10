@@ -24,9 +24,27 @@ export class Reporter {
     const rec = { time: new Date().toISOString(), ...obj };
     fs.appendFileSync(this.journalPath, JSON.stringify(rec) + '\n');
     this.journalDirty = true;
-    const pnl = obj.event === 'CLOSE' && obj.entry ? ` 손익≈${((obj.price - obj.entry) * obj.qty * (obj.side === 'SELL' ? 1 : -1)).toFixed(2)} USDT` : '';
-    this.info(`거래 ${obj.event} ${obj.symbol} ${obj.side} ${obj.qty} @ ${obj.price} (${obj.reason})${pnl}`);
+    const pnlVal = obj.pnl ?? (obj.event === 'CLOSE' && obj.entry ? (obj.price - obj.entry) * obj.qty * (obj.side === 'SELL' ? 1 : -1) : null);
+    const pnl = obj.event === 'CLOSE' && pnlVal != null ? ` 손익 ${pnlVal >= 0 ? '+' : ''}${Number(pnlVal).toFixed(3)} USDT` : '';
+    const fee = obj.fee != null ? ` · 수수료 ${Number(obj.fee).toFixed(4)}` : '';
+    const slip = obj.slippagePct != null ? ` · 슬리피지 ${obj.slippagePct.toFixed(3)}%` : '';
+    this.info(`거래 ${obj.event} ${obj.symbol} ${obj.side} ${obj.qty} @ ${obj.price} (${obj.reason})${pnl}${fee}${slip}`);
   }
+  readJournal() {
+    if (!fs.existsSync(this.journalPath)) return [];
+    return fs.readFileSync(this.journalPath, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  }
+
+  async saveReport(day, md) {
+    const dir = path.join(this.dir, 'reports');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${day}.md`), md);
+    if (this.store) {
+      try { await this.store.put(`${this.prefix}/reports/${day}.md`, md, 'text/markdown; charset=utf-8'); }
+      catch (e) { this.warn(`보고서 업로드 실패: ${e.message}`); }
+    }
+  }
+
   save() {
     const tmp = this.statePath + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(this.state, null, 2));

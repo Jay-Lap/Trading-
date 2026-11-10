@@ -83,3 +83,14 @@ export function applyTier(cfg, equity, state = {}) {
   if (t.expand) Object.assign(eff, { symbols: cfg.expandSymbols, maxOpenPositions: 3, maxSameDirection: 2 });
   return { cfg: eff, tier: { index: idx, ...t }, changed: idx !== before };
 }
+
+// Liquidity drought: last 6h volume vs the average 6h volume of the previous 24h (from 1h candles).
+export function liquidityDrop(hourly, dropPct = 20) {
+  const k = hourly.slice(-30);
+  if (k.length < 30) return { drop: false };
+  const last6 = k.slice(-6).reduce((a, c) => a + c.volume, 0);
+  const prev24 = k.slice(-30, -6).reduce((a, c) => a + c.volume, 0);
+  const avg6 = prev24 / 4;
+  const ratio = avg6 > 0 ? last6 / avg6 * 100 : 100;
+  return { drop: ratio < dropPct, ratio, last6, avg6 };
+}
