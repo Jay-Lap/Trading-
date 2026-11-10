@@ -62,7 +62,7 @@ export async function tick(team) {
       else await broker.cancelProtection(s);
     }
     r.save();
-    await r.flush();
+    await r.flush({ force: true });
     return 'STOPPED';
   }
 
@@ -110,7 +110,7 @@ export async function tick(team) {
       if (pos && sig.closeSide && open[symbol] === sig.closeSide) {
         await exit.close(symbol, pos, f, `위원회 반대 전환 (확신 ${sig.conviction.toFixed(2)})`); pos = null; delete open[symbol];
       }
-      if (sig.action === 'HOLD') { r.info(`${symbol} 대기: ${sig.reason}${sig.trend ? ` (추세 ${sig.trend})` : ''} 가격 ${sig.price ?? '-'}`); continue; }
+      if (sig.action === 'HOLD') { r.info(`${symbol} ${pos ? `보유 유지 (${open[symbol] === 'SHORT' ? '숏' : '롱'})` : '대기'}: ${sig.reason}${sig.trend ? ` (추세 ${sig.trend})` : ''} 가격 ${sig.price ?? '-'}`); continue; }
       if (pos && open[symbol] === sig.action) { r.info(`${symbol} 이미 같은 방향 포지션 보유`); continue; }
       if (pos) { await exit.close(symbol, pos, f, `반대 신호(${sig.reason})`); pos = null; delete open[symbol]; }
       candidates.push({ symbol, sig });
@@ -136,6 +136,7 @@ export async function tick(team) {
       await broker.cancelProtection(symbol); // clear any orphaned stop/TP from a previous position
       r.state.positions[symbol] = { stop: sig.stop, takeProfit: sig.takeProfit, side, signalPrice: sig.signalPrice ?? sig.price, openedAt: new Date().toISOString() };
       r.save();
+      await r.flush({ force: true });
       let res;
       try { res = await broker.market(symbol, side, sizing.qty, f); }
       catch (e) {
@@ -148,7 +149,7 @@ export async function tick(team) {
       const fill = (fi?.qty ? fi.avgPrice : 0) || Number(res.avgPrice) || sig.price;
       const slippagePct = (side === 'BUY' ? fill - sig.price : sig.price - fill) / sig.price * 100; // + = worse than the decision price
       Object.assign(r.state.positions[symbol], { entry: fill, qty: sizing.qty, fee: fi?.fee ?? null });
-      r.trade({ event: 'OPEN', symbol, side, qty: sizing.qty, price: +fill.toFixed(6), decisionPrice: sig.price, signalPrice: sig.signalPrice ?? sig.price,
+      r.trade({ event: 'OPEN', symbol, side, qty: sizing.qty, price: +fill.toFixed(6), decisionPrice: sig.price, signalPrice: sig.signalPrice ?? sig.price, feeAsset: fi?.feeAsset,
         slippagePct: +slippagePct.toFixed(4), fee: fi ? +fi.fee.toFixed(4) : null, reason: sig.reason, stop: sig.stop, takeProfit: sig.takeProfit, riskUsdt: +sizing.riskUsdt.toFixed(2) });
 
       const now = await broker.position(symbol);
@@ -203,7 +204,7 @@ async function main() {
   team.r.info(`시세 출처: ${team.data.source === 'spot' ? '바이낸스 현물(대체)' : '바이낸스 선물'}`);
   team.r.info(`시작. 계좌 평가금액 ${(await team.broker.equity()).toFixed(2)} USDT. 긴급 정지: 이 폴더에 STOP 파일 생성.`);
   const shutdown = async (sig) => {
-    team.r.save(); await team.r.flush();
+    team.r.save(); await team.r.flush({ force: true });
     team.r.info(`${sig} 로 종료. 열린 포지션은 거래소 손절 주문이 계속 보호합니다.`);
     process.exit(0);
   };

@@ -33,7 +33,7 @@ export class ExitBot {
     const near = (a, b) => b && Math.abs(a - b) / b < 0.006;
     const reason = near(px, meta.stop) ? '거래소 손절 체결' : near(px, meta.takeProfit) ? '거래소 익절 체결' : '거래소에서 청산 (수동 등)';
     this.r.trade({ event: 'CLOSE', symbol, side: closeSide, qty: fill.qty, price: +px.toFixed(6), entry: meta.entry ?? null,
-      pnl: +fill.realizedPnl.toFixed(4), fee: +fill.fee.toFixed(4), reason, meta });
+      pnl: +fill.realizedPnl.toFixed(4), fee: +fill.fee.toFixed(4), feeAsset: fill.feeAsset, reason, meta });
     return fill;
   }
 
@@ -71,8 +71,11 @@ export class ExitBot {
       return this.close(symbol, pos, filters, '익절가 도달(봇 감시)');
 
     // Make sure the exchange-side stop exists; if it cannot be placed, flatten.
-    if (!(await this.b.hasStop(symbol))) {
+    // null = could not check (API hiccup): do nothing this tick rather than stack duplicate orders.
+    const has = await this.b.hasStop(symbol);
+    if (has === false) {
       try {
+        await this.b.cancelProtection(symbol); // drop a lone take-profit so we don't end up with two
         await this.b.placeProtection(symbol, long ? 'SELL' : 'BUY', meta.stop, meta.takeProfit, filters);
         this.r.info(`${symbol} ${this.b.kind === 'paper' ? '가상 손절·익절' : '거래소 손절 주문'} 설정 @ 손절 ${meta.stop.toFixed(4)}${meta.takeProfit ? ` / 익절 ${meta.takeProfit.toFixed(4)}` : ''}`);
       } catch (e) {

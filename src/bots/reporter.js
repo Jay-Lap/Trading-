@@ -70,8 +70,11 @@ export class Reporter {
   }
 
   // Upload state (and journal if it changed). Never throws: storage trouble must not stop trading.
-  async flush() {
+  async flush({ force = false } = {}) {
     if (!this.store || (!this.dirty && !this.journalDirty)) return;
+    // State changes every tick (timestamps); upload it at most every 5 minutes unless something real happened.
+    if (!force && !this.journalDirty && Date.now() - (this.lastFlush ?? 0) < 5 * 60e3) return;
+    this.lastFlush = Date.now();
     try {
       if (this.dirty) await this.store.put(`${this.prefix}/state.json`, JSON.stringify(this.state, null, 2));
       if (this.journalDirty && fs.existsSync(this.journalPath))

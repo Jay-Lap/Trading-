@@ -24,7 +24,7 @@ export class ExchangeBroker {
     if (dual.dualSidePosition) throw new Error('계정이 "헤지 모드" 입니다. 바이낸스 선물 설정에서 "단방향(One-way) 모드"로 바꾼 뒤 다시 실행하세요.');
     for (const symbol of symbols) {
       try { await this.c.signed('POST', '/fapi/v1/marginType', { symbol, marginType: 'ISOLATED' }); }
-      catch (e) { if (e.code !== -4046) this.log.warn(`${symbol} 격리마진 설정 실패: ${e.message}`); }
+      catch (e) { if (![-4046, -4067, -4048].includes(e.code)) this.log.warn(`${symbol} 격리마진 설정 실패: ${e.message}`); }
       await this.c.signed('POST', '/fapi/v1/leverage', { symbol, leverage });
     }
   }
@@ -80,21 +80,26 @@ export class ExchangeBroker {
     return { stop: s, takeProfit: t };
   }
 
+  // true / false, or null when it could not be checked (then the caller must NOT place duplicates).
   async hasStop(symbol) {
     const isStop = o => ['STOP_MARKET', 'STOP'].includes(o.orderType ?? o.type);
     try {
       const algo = await this.c.signed('GET', '/fapi/v1/openAlgoOrders', { symbol });
       const list = Array.isArray(algo) ? algo : (algo.orders ?? []);
       if (list.some(isStop)) return true;
-    } catch (e) { this.log.warn(`${symbol} algo 미체결 조회 실패: ${e.message}`); }
-    const legacy = await this.c.signed('GET', '/fapi/v1/openOrders', { symbol });
-    return legacy.some(isStop);
+      const legacy = await this.c.signed('GET', '/fapi/v1/openOrders', { symbol });
+      return legacy.some(isStop);
+    } catch (e) {
+      this.log.warn(`${symbol} 미체결 주문 조회 실패 → 이번 틱은 손절 재설정 보류: ${e.message}`);
+      return null;
+    }
   }
 
-  // Fills of one order, or of all trades since startTime (ms).
+  // Fills of one order, or trades since startTime (ms). Binance only serves a 7-day window per query,
+  // so ask for the latest 7 days and filter locally (positions can be held longer than 7 days).
   async fills(symbol, { orderId, startTime, side } = {}) {
-    const rows = await this.c.signed('GET', '/fapi/v1/userTrades', orderId ? { symbol, orderId } : { symbol, startTime, limit: 100 });
-    return summarizeFills(side ? rows.filter(t => t.side === side) : rows);
+    const rows = await this.c.signed('GET', '/fapi/v1/userTrades', orderId ? { symbol, orderId } : { symbol, limit: 1000 });
+    return summarizeFills(rows.filter(t => (!side || t.side === side) && (!startTime || Number(t.time) >= startTime)));
   }
 
   async funding(startTime, endTime) {

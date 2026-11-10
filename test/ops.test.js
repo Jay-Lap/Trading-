@@ -62,3 +62,44 @@ test('daily report lists losses first, with causes, and flags fee-eaten trades',
   assert.ok(/손절가까지 역행/.test(md));
   assert.ok(/수수료가 이익을 잠식/.test(md));
 });
+
+test('manage: unknown stop status (API hiccup) does not place duplicate orders', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ops-'));
+  const r = new Reporter(dir, { quiet: true });
+  r.state.positions.SOLUSDT = { stop: 89, takeProfit: 77, side: 'SELL' };
+  let placed = 0, cancelled = 0;
+  const b = { kind: 'exchange', hasStop: async () => null, placeProtection: async () => { placed++; }, cancelProtection: async () => { cancelled++; } };
+  const ex = new ExitBot(b, r, cfg);
+  await ex.manage('SOLUSDT', { qty: -0.13, entryPrice: 85, markPrice: 84 }, {});
+  assert.equal(placed, 0);
+  b.hasStop = async () => false; // genuinely missing → clear leftovers, then place once
+  await ex.manage('SOLUSDT', { qty: -0.13, entryPrice: 85, markPrice: 84 }, {});
+  assert.equal(placed, 1); assert.equal(cancelled, 1);
+});
+
+test('fills: filters by side and start time over the 7-day window', async () => {
+  const { ExchangeBroker } = await import('../src/bots/execution.js');
+  const rows = [{ time: 1000, side: 'SELL', qty: '1', price: '80', commission: '0.01', realizedPnl: '0' },
+                { time: 5000, side: 'BUY', qty: '1', price: '77', commission: '0.01', realizedPnl: '3' },
+                { time: 500, side: 'BUY', qty: '1', price: '70', commission: '0.01', realizedPnl: '9' }];
+  const b = new ExchangeBroker({ signed: async () => rows }, { warn() {} });
+  const f = await b.fills('SOLUSDT', { startTime: 900, side: 'BUY' });
+  assert.equal(f.count, 1); assert.equal(f.avgPrice, 77); assert.equal(f.realizedPnl, 3);
+});
+
+test('client: resyncs and retries once on -1021, pauses after 429', async () => {
+  const { BinanceClient } = await import('../src/lib/binanceClient.js');
+  let n = 0, timeCalls = 0;
+  const fetchImpl = async (url) => {
+    if (url.includes('/fapi/v1/time')) { timeCalls++; return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify({ serverTime: Date.now() }) }; }
+    n++;
+    if (url.includes('/x') && n === 1) return { ok: false, status: 400, headers: { get: () => null }, text: async () => JSON.stringify({ code: -1021, msg: 'Timestamp outside recvWindow' }) };
+    if (url.includes('/rl')) return { ok: false, status: 429, headers: { get: () => '30' }, text: async () => JSON.stringify({ code: -1003, msg: 'Too many requests' }) };
+    return { ok: true, status: 200, headers: { get: () => null }, text: async () => '{"ok":1}' };
+  };
+  const c = new BinanceClient({ baseUrl: 'https://fake', apiKey: 'k', apiSecret: 's', fetchImpl });
+  assert.deepEqual(await c.signed('GET', '/x'), { ok: 1 });
+  assert.equal(timeCalls, 1);
+  await assert.rejects(c.signed('GET', '/rl'));
+  await assert.rejects(c.signed('GET', '/other'), /대기 중/); // paused, no request sent
+});
