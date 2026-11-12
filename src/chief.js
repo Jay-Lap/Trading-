@@ -108,10 +108,12 @@ export async function tick(team) {
       }
       const sig = generateSignal(candles, sCfg);
       if (pos && sig.closeSide && open[symbol] === sig.closeSide) {
+        r.decision({ symbol, decision: 'CLOSE', reason: '위원회 반대 전환', ...sigInfo(sig) });
         await exit.close(symbol, pos, f, `위원회 반대 전환 (확신 ${sig.conviction.toFixed(2)})`); pos = null; delete open[symbol];
       }
+      if (sig.action === 'HOLD') r.decision({ symbol, decision: pos ? 'KEEP' : 'HOLD', reason: sig.reason, ...sigInfo(sig) });
       if (sig.action === 'HOLD') { r.info(`${symbol} ${pos ? `보유 유지 (${open[symbol] === 'SHORT' ? '숏' : '롱'})` : '대기'}: ${sig.reason}${sig.trend ? ` (추세 ${sig.trend})` : ''} 가격 ${sig.price ?? '-'}`); continue; }
-      if (pos && open[symbol] === sig.action) { r.info(`${symbol} 이미 같은 방향 포지션 보유`); continue; }
+      if (pos && open[symbol] === sig.action) { r.decision({ symbol, decision: 'KEEP', reason: '같은 방향 신호, 이미 보유 (추가 진입 안 함)', ...sigInfo(sig) }); r.info(`${symbol} 이미 같은 방향 포지션 보유`); continue; }
       if (pos) { await exit.close(symbol, pos, f, `반대 신호(${sig.reason})`); pos = null; delete open[symbol]; }
       candidates.push({ symbol, sig });
     } catch (e) {
@@ -124,12 +126,13 @@ export async function tick(team) {
     const f = filters[symbol];
     try {
       const sig = reanchor(raw, await data.markPrice(symbol));
-      if (daily.halted) continue;
+      if (daily.halted) { r.decision({ symbol, decision: 'VETO', want: sig.action, reason: `일일 손실 한도 도달 (${daily.lossPct.toFixed(2)}%)`, ...sigInfo(sig) }); continue; }
       const gate = allowEntry(sig.action, open, cfg);
-      if (!gate.ok) { r.warn(`${symbol} ${sig.action} 보류: ${gate.reason}`); continue; }
+      if (!gate.ok) { r.decision({ symbol, decision: 'VETO', want: sig.action, reason: gate.reason, ...sigInfo(sig) }); r.warn(`${symbol} ${sig.action} 보류: ${gate.reason}`); continue; }
 
       const sizing = sizePosition({ signal: sig, equity: await broker.equity(), filters: f, cfg });
-      if (!sizing.ok) { r.warn(`${symbol} 리스크 봇 거부: ${sizing.reason}`); continue; }
+      if (!sizing.ok) { r.decision({ symbol, decision: 'VETO', want: sig.action, reason: sizing.reason, ...sigInfo(sig) }); r.warn(`${symbol} 리스크 봇 거부: ${sizing.reason}`); continue; }
+      r.decision({ symbol, decision: 'ENTER', want: sig.action, reason: sig.reason, qty: sizing.qty, notional: +sizing.notional.toFixed(2), riskUsdt: +sizing.riskUsdt.toFixed(3), ...sigInfo(sig) });
 
       const side = sig.action === 'LONG' ? 'BUY' : 'SELL';
       // Record intended stop BEFORE ordering, so a crash mid-way still leaves a stop to enforce.
@@ -169,6 +172,12 @@ export async function tick(team) {
 }
 
 // CHIEF: once per UTC day (first tick after 00:00 UTC = 09:00 KST) write a report for the day that ended.
+// Compact, structured view of a signal for the decisions log.
+function sigInfo(sig) {
+  return { price: sig.price, conviction: sig.conviction != null ? +sig.conviction.toFixed(3) : undefined, adx: sig.adx != null ? +sig.adx.toFixed(1) : undefined,
+    votes: sig.votes?.map(v => ({ a: v.analyst, s: v.signal, c: Math.round(v.confidence) })), stop: sig.stop, takeProfit: sig.takeProfit };
+}
+
 async function maybeDailyReport(team, cfg, equity) {
   const { r, broker } = team;
   const today = new Date().toISOString().slice(0, 10);

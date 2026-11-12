@@ -8,6 +8,7 @@ export class Reporter {
     fs.mkdirSync(dir, { recursive: true });
     this.statePath = path.join(dir, 'state.json');
     this.journalPath = path.join(dir, 'journal.jsonl');
+    this.decisionsPath = path.join(dir, 'decisions.jsonl');
     this.state = fs.existsSync(this.statePath) ? JSON.parse(fs.readFileSync(this.statePath, 'utf8')) : {};
     this.state.positions ??= {};
     this.state.lastCandle ??= {};
@@ -45,6 +46,12 @@ export class Reporter {
     }
   }
 
+  // Every 4h decision (enter / hold / keep / veto) with its reasons — not only trades.
+  decision(obj) {
+    fs.appendFileSync(this.decisionsPath, JSON.stringify({ time: new Date().toISOString(), ...obj }) + '\n');
+    this.decisionsDirty = true;
+  }
+
   save() {
     const tmp = this.statePath + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify(this.state, null, 2));
@@ -57,8 +64,10 @@ export class Reporter {
 
   async restore() {
     if (!this.store) return false;
-    const [state, journal] = await Promise.all([
-      this.store.get(`${this.prefix}/state.json`), this.store.get(`${this.prefix}/journal.jsonl`)]);
+    const [state, journal, decisions] = await Promise.all([
+      this.store.get(`${this.prefix}/state.json`), this.store.get(`${this.prefix}/journal.jsonl`),
+      this.store.get(`${this.prefix}/decisions.jsonl`).catch(() => null)]);
+    if (decisions) fs.writeFileSync(this.decisionsPath, decisions);
     if (state) {
       this.state = JSON.parse(state);
       this.state.positions ??= {};
@@ -71,15 +80,17 @@ export class Reporter {
 
   // Upload state (and journal if it changed). Never throws: storage trouble must not stop trading.
   async flush({ force = false } = {}) {
-    if (!this.store || (!this.dirty && !this.journalDirty)) return;
+    if (!this.store || (!this.dirty && !this.journalDirty && !this.decisionsDirty)) return;
     // State changes every tick (timestamps); upload it at most every 5 minutes unless something real happened.
-    if (!force && !this.journalDirty && Date.now() - (this.lastFlush ?? 0) < 5 * 60e3) return;
+    if (!force && !this.journalDirty && !this.decisionsDirty && Date.now() - (this.lastFlush ?? 0) < 5 * 60e3) return;
     this.lastFlush = Date.now();
     try {
       if (this.dirty) await this.store.put(`${this.prefix}/state.json`, JSON.stringify(this.state, null, 2));
       if (this.journalDirty && fs.existsSync(this.journalPath))
         await this.store.put(`${this.prefix}/journal.jsonl`, fs.readFileSync(this.journalPath, 'utf8'), 'application/x-ndjson');
-      this.dirty = false; this.journalDirty = false;
+      if (this.decisionsDirty && fs.existsSync(this.decisionsPath))
+        await this.store.put(`${this.prefix}/decisions.jsonl`, fs.readFileSync(this.decisionsPath, 'utf8'), 'application/x-ndjson');
+      this.dirty = false; this.journalDirty = false; this.decisionsDirty = false;
     } catch (e) {
       this.warn(`기록 저장소(버킷) 업로드 실패, 다음 틱에 재시도: ${e.message}`);
     }

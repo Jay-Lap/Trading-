@@ -88,3 +88,10 @@ onpod app env set binance-team-bot MODE=testnet BINANCE_API_KEY=데모키 BINANC
 - **유동성 급감 청산 (위험):** 15분마다 1시간봉으로 "최근 6시간 거래량 < 직전 24시간의 6시간 평균 × 20%" 이면 즉시 청산.
   3년 데이터: SOL 0회, BTC 10일, ETH 12일(조용한 주말). 끄기: `LIQ_EXIT=0`, 기준: `LIQ_DROP_PCT`.
 - 보류: 탐색(상위 10종목)·검토·포지션 ≤ 잔고 6% 규칙은 잔고가 커지면 추가. 예측 시장은 폐기.
+
+## 결정 기록 (2026-11-12 추가, grok-trader 프롬프트에서 채택)
+
+- `decisions.jsonl`: 4시간 판단마다 종목별 결정을 한 줄씩 — `ENTER`(진입) · `HOLD`(신호 없음) · `KEEP`(보유 유지) ·
+  `VETO`(리스크 봇/한도가 막음, 이유 포함) · `CLOSE`(위원회 반대 청산). 위원회 확신·ADX·4명 투표·가격·손절·익절도 같이.
+- 보기: `onpod exec binance-team-bot -- tail -n 20 data/live/decisions.jsonl` (버킷에도 저장)
+- 채택하지 않은 것: 새 솔라나 토큰 스캐너, 온체인 안전검사, Grok 위험점수, 밈코인용 손절/익절 — 메이저 선물 봇과 맞지 않음.

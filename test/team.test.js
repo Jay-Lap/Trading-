@@ -145,3 +145,17 @@ test('e2e: stop/TP filled on the exchange → bot clears orphan orders and recor
   assert.equal(fb.st.algo.length, 0, 'orphaned stop must be cancelled');
   assert.equal(team.r.state.positions.BTCUSDT, undefined, 'stale record must be cleared');
 });
+
+test('decisions log records every 4h decision with reasons', async () => {
+  const all = vCandles(80);
+  const { generateSignal } = await import('../src/bots/strategy.js');
+  let n = 20; while (generateSignal(all.slice(0, n), cfg).action !== 'LONG') n++;
+  const fb = fakeBinance(all.slice(0, n));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-'));
+  const client = new BinanceClient({ baseUrl: 'https://fake', apiKey: 'k', apiSecret: 's', fetchImpl: fb.fetchImpl });
+  const team = await buildTeam({ ...cfg, mode: 'testnet', apiKey: 'k', apiSecret: 's' }, { reporter: new Reporter(dir, { quiet: true }), tradeClient: client, dataClient: client });
+  await tick(team);
+  const d = fs.readFileSync(path.join(dir, 'decisions.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+  assert.equal(d.at(-1).decision, 'ENTER');
+  assert.ok(d.at(-1).reason && d.at(-1).price > 0);
+});
