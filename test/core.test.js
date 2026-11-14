@@ -126,3 +126,11 @@ test('auto tiers: aggressive below 50, stable after, expand at 300, never step d
   assert.deepEqual(t.cfg.symbols, ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']); assert.equal(t.cfg.maxOpenPositions, 3);
   assert.equal(applyTier({ ...c, autoTiers: false }, 1000, {}).cfg.riskPerTradePct, cfg.riskPerTradePct);
 });
+
+test('tier 1 sizing is configurable (margin = half of balance at 3x → notional 150%)', async () => {
+  const { applyTier } = await import('../src/bots/risk.js');
+  const c = { ...cfg, autoTiers: true, symbols: ['SOLUSDT'], expandSymbols: ['SOLUSDT'], tier1RiskPct: 6, tier1NotionalPct: 150 };
+  const t = applyTier(c, 24, {});
+  assert.equal(t.cfg.riskPerTradePct, 6); assert.equal(t.cfg.maxNotionalUsdt, 36);
+  assert.equal(applyTier(c, 60, {}).cfg.riskPerTradePct, 2); // stable tier unaffected
+});

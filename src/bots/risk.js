@@ -65,7 +65,8 @@ export function reanchor(sig, mark) {
 // Automatic risk tiers by account size. A tier, once reached, is never left (high-water mark),
 // so a drawdown after reaching "stable" never switches back to aggressive sizing.
 export const TIERS = [
-  { name: '빨리 키우기', minEquity: 0, riskPerTradePct: 5, maxNotionalUsdt: 20 },
+  // Tier 1 sizing comes from config (TIER1_RISK_PCT / TIER1_NOTIONAL_PCT) so it can be tuned without code changes.
+  { name: '빨리 키우기', minEquity: 0, riskPerTradePct: 5, maxNotionalUsdt: 20, configurable: true },
   { name: '안정권', minEquity: 50, riskPerTradePct: 2, maxNotionalPctOfEquity: 100 },
   { name: '확장', minEquity: 300, riskPerTradePct: 2, maxNotionalPctOfEquity: 100, expand: true },
 ];
@@ -80,6 +81,10 @@ export function applyTier(cfg, equity, state = {}) {
   const t = TIERS[idx];
   const eff = { ...cfg, riskPerTradePct: t.riskPerTradePct };
   eff.maxNotionalUsdt = t.maxNotionalUsdt ?? Math.max(5, equity * t.maxNotionalPctOfEquity / 100);
+  if (t.configurable) {
+    if (cfg.tier1RiskPct > 0) eff.riskPerTradePct = cfg.tier1RiskPct;
+    if (cfg.tier1NotionalPct > 0) eff.maxNotionalUsdt = Math.max(5, equity * cfg.tier1NotionalPct / 100);
+  }
   if (t.expand) Object.assign(eff, { symbols: cfg.expandSymbols, maxOpenPositions: 3, maxSameDirection: 2 });
   return { cfg: eff, tier: { index: idx, ...t }, changed: idx !== before };
 }

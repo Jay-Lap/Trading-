@@ -95,3 +95,9 @@ onpod app env set binance-team-bot MODE=testnet BINANCE_API_KEY=데모키 BINANC
   `VETO`(리스크 봇/한도가 막음, 이유 포함) · `CLOSE`(위원회 반대 청산). 위원회 확신·ADX·4명 투표·가격·손절·익절도 같이.
 - 보기: `onpod exec binance-team-bot -- tail -n 20 data/live/decisions.jsonl` (버킷에도 저장)
 - 채택하지 않은 것: 새 솔라나 토큰 스캐너, 온체인 안전검사, Grok 위험점수, 밈코인용 손절/익절 — 메이저 선물 봇과 맞지 않음.
+
+## 1단계 크기 변경 (2026-11-14, 사용자 요청: 증거금 = 잔고 절반)
+
+- `TIER1_RISK_PCT=6`, `TIER1_NOTIONAL_PCT=150` → 3배에서 진입 금액 ≈ 잔고 × 1.5 (24 USDT 기준 약 36 USDT), 한 번 손절 약 -6%.
+- 백테스트 (24.11 USDT 시작, SOL 3년): 이전(5%·20 USDT) 62.0 USDT·낙폭 21.0% → 변경 후 79.4 USDT·낙폭 32.6%.
+- 3개월 구간 72개: 중간값 26.9 → 28.0, 최악 16.7 → 14.6 USDT.
