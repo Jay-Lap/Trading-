@@ -51,6 +51,7 @@ export function backtest(candles, cfg, filters, { startEquity = 1000, window = 5
 // Multi-symbol backtest sharing ONE account, with the same ranking + portfolio limits as the live chief.
 // series: { SYMBOL: candles[] }, filtersBy: { SYMBOL: filters }
 import { allowEntry, rankCandidates, applyTier } from '../bots/risk.js';
+import { entryContext } from './context.js';
 
 // htf: { SYMBOL: [{ closeTime, conviction }] } sorted — higher-timeframe committee, used only once closed.
 function htfAt(list, decisionTime) {
@@ -71,7 +72,8 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
     const p = pos[s];
     const pnl = (price - p.entry) * p.qty - Math.abs(p.qty) * price * FEE;
     equity += pnl; perSym[s].n++; perSym[s].pnl += pnl;
-    trades.push({ symbol: s, side: p.qty > 0 ? 'LONG' : 'SHORT', entryTime: p.time, entry: p.entry, exitTime: lastTime, exit: price, qty: Math.abs(p.qty), pnl, reason });
+    trades.push({ symbol: s, side: p.qty > 0 ? 'LONG' : 'SHORT', entryTime: p.time, entry: p.entry, exitTime: lastTime, exit: price, qty: Math.abs(p.qty), pnl,
+      pnlPct: pnl / p.equityAtEntry * 100, bars: Math.round((lastTime - p.time) / (4 * 3600e3)), reason, ctx: p.ctx });
     delete pos[s];
   };
   const lastClose = {};
@@ -96,17 +98,17 @@ export function backtestPortfolio(series, cfg, filtersBy, { startEquity = 1000, 
       if (sig.action === 'HOLD') continue;
       if (pos[s] && (pos[s].qty > 0) === (sig.action === 'LONG')) continue;
       if (pos[s]) close(s, c.close, 'reverse');
-      if (t >= tradeFrom) cands.push({ symbol: s, sig, close: c.close, time: c.closeTime });
+      if (t >= tradeFrom) cands.push({ symbol: s, sig, close: c.close, time: c.closeTime, ctx: entryContext(series[s].slice(Math.max(0, i - 30), i + 1), sig) });
     }
     const eff = cfg.autoTiers ? applyTier(cfg, equity, tierState).cfg : cfg;
-    for (const { symbol: s, sig, close: px, time: ct } of rankCandidates(cands)) {
+    for (const { symbol: s, sig, close: px, time: ct, ctx } of rankCandidates(cands)) {
       if (cfg.autoTiers && eff.symbols && !eff.symbols.includes(s)) continue;
       const open = Object.fromEntries(Object.entries(pos).map(([k, p]) => [k, p.qty > 0 ? 'LONG' : 'SHORT']));
       if (!allowEntry(sig.action, open, eff).ok) { blocked++; continue; }
       const z = sizePosition({ signal: sig, equity, filters: filtersBy[s], cfg: eff });
       if (!z.ok) continue;
       equity -= z.qty * px * FEE;
-      pos[s] = { qty: sig.action === 'LONG' ? z.qty : -z.qty, entry: px, stop: sig.stop, tp: sig.takeProfit, time: ct };
+      pos[s] = { qty: sig.action === 'LONG' ? z.qty : -z.qty, entry: px, stop: sig.stop, tp: sig.takeProfit, time: ct, ctx, equityAtEntry: equity };
     }
     const mtm = equity + Object.entries(pos).reduce((a, [s, p]) => a + (lastClose[s] - p.entry) * p.qty, 0);
     peak = Math.max(peak, mtm);

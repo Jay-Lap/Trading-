@@ -10,6 +10,7 @@ import { generateSignal } from './bots/strategy.js';
 import { committeeConviction } from './bots/committee.js';
 import { sizePosition, checkDailyLimit, allowEntry, rankCandidates, reanchor, applyTier, liquidityDrop, TIERS } from './bots/risk.js';
 import { buildDailyReport } from './bots/report.js';
+import { entryContext } from './lib/context.js';
 import { ExchangeBroker, PaperBroker } from './bots/execution.js';
 import { ExitBot } from './bots/exit.js';
 import { Reporter } from './bots/reporter.js';
@@ -115,14 +116,14 @@ export async function tick(team) {
       if (sig.action === 'HOLD') { r.info(`${symbol} ${pos ? `보유 유지 (${open[symbol] === 'SHORT' ? '숏' : '롱'})` : '대기'}: ${sig.reason}${sig.trend ? ` (추세 ${sig.trend})` : ''} 가격 ${sig.price ?? '-'}`); continue; }
       if (pos && open[symbol] === sig.action) { r.decision({ symbol, decision: 'KEEP', reason: '같은 방향 신호, 이미 보유 (추가 진입 안 함)', ...sigInfo(sig) }); r.info(`${symbol} 이미 같은 방향 포지션 보유`); continue; }
       if (pos) { await exit.close(symbol, pos, f, `반대 신호(${sig.reason})`); pos = null; delete open[symbol]; }
-      candidates.push({ symbol, sig });
+      candidates.push({ symbol, sig, ctx: entryContext(candles.slice(-30), sig) });
     } catch (e) {
       r.error(`${symbol} 처리 중 오류: ${e.message}`);
     }
   }
 
   // Pass 2: RISK bot ranks candidates by conviction and enforces portfolio limits.
-  for (const { symbol, sig: raw } of rankCandidates(candidates)) {
+  for (const { symbol, sig: raw, ctx } of rankCandidates(candidates)) {
     const f = filters[symbol];
     try {
       const sig = reanchor(raw, await data.markPrice(symbol));
@@ -153,7 +154,7 @@ export async function tick(team) {
       const slippagePct = (side === 'BUY' ? fill - sig.price : sig.price - fill) / sig.price * 100; // + = worse than the decision price
       Object.assign(r.state.positions[symbol], { entry: fill, qty: sizing.qty, fee: fi?.fee ?? null });
       r.trade({ event: 'OPEN', symbol, side, qty: sizing.qty, price: +fill.toFixed(6), decisionPrice: sig.price, signalPrice: sig.signalPrice ?? sig.price, feeAsset: fi?.feeAsset,
-        slippagePct: +slippagePct.toFixed(4), fee: fi ? +fi.fee.toFixed(4) : null, reason: sig.reason, stop: sig.stop, takeProfit: sig.takeProfit, riskUsdt: +sizing.riskUsdt.toFixed(2) });
+        slippagePct: +slippagePct.toFixed(4), fee: fi ? +fi.fee.toFixed(4) : null, ctx, reason: sig.reason, stop: sig.stop, takeProfit: sig.takeProfit, riskUsdt: +sizing.riskUsdt.toFixed(2) });
 
       const now = await broker.position(symbol);
       if (now) await exit.manage(symbol, now, f); // places exchange stop/TP, or flattens if it can't

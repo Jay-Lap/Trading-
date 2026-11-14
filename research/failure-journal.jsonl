@@ -1,0 +1,36 @@
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "15분봉 EMA 교차 (1년)", "verdict": "실패", "why": "BTC -11.7% · ETH -22.8% · SOL -18.2%, 거래 750~810회 — 수수료에 잠식", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "1시간봉 위원회 (BTC·ETH·SOL 2년)", "verdict": "실패", "why": "-1.9%, 낙폭 14.6% vs 4시간봉 +25.8%", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "2시간봉 위원회 (BTC·ETH·SOL 2년)", "verdict": "실패", "why": "-8.4%, 낙폭 21.9%", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "일봉 위원회 확인 + 익절 없음 (3년)", "verdict": "실패", "why": "SOL +68.6% vs 일봉 확인 없음 +77.5% — 수익 감소", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "같은 방향 추가 진입(불타기) 1~2회 (SOL 3년)", "verdict": "실패", "why": "3년 49~56 USDT로 차이 없음, 낙폭 22% → 32~45%", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "레버리지만 10배로 (3종 2년)", "verdict": "실패", "why": "수량은 위험%로 정해져 효과 없음. 이득은 변동성 필터 효과였음(3배+5% 필터와 동일)", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "전액·10배 (SOL 3개월 구간 72개)", "verdict": "실패", "why": "중간값 24 → 18.7 USDT, 반토막 35%, 최악 0.5 USDT", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "익절 없음 (위원회 반대 시 청산)", "verdict": "보류", "why": "3년 수익은 높지만 낙폭 2배, 나쁜 해 +2.6% — 5 ATR 익절이 낙폭 대비 효율 2배", "source": "수동 실험(대화)"}
+{"key": null, "when": "2026-11-09~14", "symbol": "BTC/ETH/SOL", "tried": "단타봇 (15분봉 이하)", "verdict": "실패", "why": "수수료·경쟁 때문에 기대수익 없음 — 만들지 않기로", "source": "수동 실험(대화)"}
+{"key":"2199e15f2dc3","when":"2026-11-14","symbol":"SOLUSDT","base":{},"tried":"위원회 확신 기준 0.5 → 0.6","verdict":"실패","why":"학습구간 점수 51.45 → 24.05 (수익 58.5% → 29.2%, 낙폭 14.1% → 10.3%)"}
+{"key":"f54cbac6f7c9","when":"2026-11-14","symbol":"SOLUSDT","base":{},"tried":"위원회 확신 기준 0.5 → 0.7","verdict":"실패","why":"학습구간 점수 51.45 → -38.35 (수익 58.5% → -25%, 낙폭 14.1% → 26.7%)"}
+{"key":"d9b7e6a5d321","when":"2026-11-14","symbol":"SOLUSDT","base":{},"tried":"손절 2 ATR → 2.5 ATR","verdict":"실패","why":"학습구간 점수 51.45 → 7.8 (수익 58.5% → 12.6%, 낙폭 14.1% → 9.6%)"}
+{"key":"10acb26fc893","when":"2026-11-14","symbol":"SOLUSDT","base":{},"tried":"익절 5 ATR → 4 ATR","verdict":"실패","why":"학습구간 점수 51.45 → 39.45 (수익 58.5% → 46.9%, 낙폭 14.1% → 14.9%)"}
+{"key":"5533160071fe","when":"2026-11-14","symbol":"SOLUSDT","base":{},"tried":"손절 2 ATR → 1.5 ATR","verdict":"학습구간 채택","why":"점수 51.45 → 56.05"}
+{"key":"a5793fe6121e","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"위원회 확신 기준 0.5 → 0.6","verdict":"실패","why":"학습구간 점수 56.05 → 16.95 (수익 64.6% → 27.2%, 낙폭 17.1% → 20.5%)"}
+{"key":"04ad12a5205e","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"위원회 확신 기준 0.5 → 0.7","verdict":"실패","why":"학습구간 점수 56.05 → -23.1 (수익 64.6% → -11.9%, 낙폭 17.1% → 22.4%)"}
+{"key":"173f983831f7","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"손절 2 ATR → 2.5 ATR","verdict":"실패","why":"학습구간 점수 56.05 → 7.8 (수익 64.6% → 12.6%, 낙폭 17.1% → 9.6%)"}
+{"key":"72b47982b76c","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"익절 5 ATR → 4 ATR","verdict":"실패","why":"학습구간 점수 56.05 → 32.45 (수익 64.6% → 42.9%, 낙폭 17.1% → 20.9%)"}
+{"key":"aad0b7ab3704","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"추세 강도 기준 ADX 20 → 25","verdict":"실패","why":"학습구간 점수 56.05 → -1.3 (수익 64.6% → 11.9%, 낙폭 17.1% → 26.4%)"}
+{"key":"a86f1195909b","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"추세 강도 기준 ADX 20 → 30","verdict":"실패","why":"학습구간 점수 56.05 → 3.35 (수익 64.6% → 17.8%, 낙폭 17.1% → 28.9%)"}
+{"key":"2434c85c9e6e","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"일봉 위원회와 같은 방향일 때만 진입","verdict":"실패","why":"학습구간 점수 56.05 → 4.85 (수익 64.6% → 14.6%, 낙폭 17.1% → 19.5%)"}
+{"key":"e04a7e002043","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"변동성 필터 손절폭 6% → 5%","verdict":"실패","why":"학습구간 점수 56.05 → 41.15 (수익 64.6% → 49.7%, 낙폭 17.1% → 17.1%)"}
+{"key":"f098737bb81a","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"변동성 필터 손절폭 6% → 4%","verdict":"실패","why":"학습구간 점수 56.05 → 53.75 (수익 64.6% → 61.4%, 낙폭 17.1% → 15.3%)"}
+{"key":"c79f109e9a21","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"익절 5 ATR → 6 ATR","verdict":"실패","why":"학습구간 점수 56.05 → 41.15 (수익 64.6% → 50.9%, 낙폭 17.1% → 19.5%)"}
+{"key":"f0ca83b16934","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5},"tried":"장기 추세(EMA200)와 같은 방향일 때만 진입","verdict":"학습구간 채택","why":"점수 56.05 → 59.55"}
+{"key":"dda602ce041b","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"위원회 확신 기준 0.5 → 0.6","verdict":"실패","why":"학습구간 점수 59.55 → 16.95 (수익 68.1% → 27.2%, 낙폭 17.1% → 20.5%)"}
+{"key":"16f471f9102c","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"위원회 확신 기준 0.5 → 0.7","verdict":"실패","why":"학습구간 점수 59.55 → -23.1 (수익 68.1% → -11.9%, 낙폭 17.1% → 22.4%)"}
+{"key":"a70c301b70f9","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"손절 2 ATR → 2.5 ATR","verdict":"실패","why":"학습구간 점수 59.55 → 10.45 (수익 68.1% → 14.9%, 낙폭 17.1% → 8.9%)"}
+{"key":"31ef407d3652","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"익절 5 ATR → 4 ATR","verdict":"실패","why":"학습구간 점수 59.55 → 35.45 (수익 68.1% → 45.9%, 낙폭 17.1% → 20.9%)"}
+{"key":"75ea749deab8","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"추세 강도 기준 ADX 20 → 25","verdict":"실패","why":"학습구간 점수 59.55 → -1.3 (수익 68.1% → 11.9%, 낙폭 17.1% → 26.4%)"}
+{"key":"6f867437243e","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"추세 강도 기준 ADX 20 → 30","verdict":"실패","why":"학습구간 점수 59.55 → 3.35 (수익 68.1% → 17.8%, 낙폭 17.1% → 28.9%)"}
+{"key":"f9cdaa79656a","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"일봉 위원회와 같은 방향일 때만 진입","verdict":"실패","why":"학습구간 점수 59.55 → 4.85 (수익 68.1% → 14.6%, 낙폭 17.1% → 19.5%)"}
+{"key":"2b6d3cbd5721","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"변동성 필터 손절폭 6% → 5%","verdict":"실패","why":"학습구간 점수 59.55 → 44.35 (수익 68.1% → 52.9%, 낙폭 17.1% → 17.1%)"}
+{"key":"55d79a655914","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"변동성 필터 손절폭 6% → 4%","verdict":"실패","why":"학습구간 점수 59.55 → 57.15 (수익 68.1% → 64.8%, 낙폭 17.1% → 15.3%)"}
+{"key":"9655dada52c5","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"익절 5 ATR → 6 ATR","verdict":"실패","why":"학습구간 점수 59.55 → 44.35 (수익 68.1% → 54.1%, 낙폭 17.1% → 19.5%)"}
+{"key":"a36a93e0cc92","when":"2026-11-14","symbol":"SOLUSDT","tried":"최종 조합 {\"stopAtrMult\":1.5,\"requireRegime\":true}","verdict":"실패","why":"안 본 1년 점수 26.95 → 24.85"}

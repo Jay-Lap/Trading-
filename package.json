@@ -1,15 +1,18 @@
 {
   "name": "binance-futures-team-bot",
   "version": "0.1.0",
-  "description": "6-role Binance USDⓈ-M futures trading bot (paper / testnet / live) with hard risk limits",
+  "description": "6-role Binance USD\u24c8-M futures trading bot (paper / testnet / live) with hard risk limits",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/chief.js",
     "once": "node src/chief.js --once",
     "backtest": "node src/backtest.js",
     "check": "node src/check.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "research": "node src/research.js"
   },
   "license": "UNLICENSED",
   "private": true

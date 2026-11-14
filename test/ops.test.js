@@ -103,3 +103,24 @@ test('client: resyncs and retries once on -1021, pauses after 429', async () => 
   await assert.rejects(c.signed('GET', '/rl'));
   await assert.rejects(c.signed('GET', '/other'), /대기 중/); // paused, no request sent
 });
+
+test('research: diagnose groups losses by cause; score penalizes drawdown and too few trades', async () => {
+  const { diagnose, score } = await import('../src/research.js');
+  const trades = [
+    { pnl: -10, reason: 'stop', bars: 3, ctx: { withRegime: false, conviction: -0.55, adx: 22, stopPct: 4 } },
+    { pnl: -5, reason: 'committee', bars: 40, ctx: { withRegime: true, conviction: 0.8, adx: 40, stopPct: 3 } },
+    { pnl: 12, reason: 'takeProfit', bars: 6, ctx: { withRegime: true, conviction: 0.7, adx: 35, stopPct: 3 } },
+  ];
+  const d = diagnose(trades);
+  const by = Object.fromEntries(d.map(x => [x.cause, x]));
+  assert.equal(by.stopped.lossSharePct, 67); assert.equal(by.counter_regime.losingTrades, 1); assert.equal(by.held_long.losingTrades, 1);
+  assert.equal(score({ returnPct: 20, maxDrawdownPct: 10, trades: 30 }), 15);
+  assert.equal(score({ returnPct: 50, maxDrawdownPct: 1, trades: 3 }), -999);
+});
+
+test('requireRegime blocks entries against the EMA200 regime', async () => {
+  const { committeeSignal } = await import('../src/bots/committee.js');
+  const mk = (n, slope) => { const out = []; let p = 100; for (let i = 0; i < n; i++) { p *= 1 + slope + (i % 2 ? 0.002 : -0.002); out.push({ openTime: i, open: p, high: p * 1.003, low: p * 0.997, close: p, closeTime: i }); } return out; };
+  const up = mk(260, 0.004);
+  assert.equal(committeeSignal(up, { ...cfg, requireRegime: true }).action, 'LONG'); // regime agrees
+});

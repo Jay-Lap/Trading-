@@ -33,6 +33,7 @@ export function loadConfig({ env = true } = {}) {
     committeeThreshold: num('COMMITTEE_THRESHOLD', 0.5),
     committeeAdxMin: num('COMMITTEE_ADX_MIN', 20),
     htfInterval: process.env.HTF_INTERVAL || '',
+    requireRegime: ['1', 'true', 'yes', 'on'].includes((process.env.REQUIRE_REGIME || '').toLowerCase()),
     htfMin: num('HTF_MIN', 0),
     trendEma: num('TREND_EMA', 0),
     adxPeriod: num('ADX_PERIOD', 14),

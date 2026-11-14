@@ -1,0 +1,153 @@
+{
+ "symbol": "SOLUSDT",
+ "source": "spot",
+ "period": {
+  "trainFrom": "2023-11-15",
+  "holdoutFrom": "2025-11-14"
+ },
+ "trainFirst": {
+  "returnPct": 58.5,
+  "maxDrawdownPct": 14.1,
+  "trades": 69,
+  "winRatePct": 39,
+  "score": 51.45
+ },
+ "rounds": [
+  {
+   "round": 1,
+   "before": {
+    "returnPct": 58.5,
+    "maxDrawdownPct": 14.1,
+    "trades": 69,
+    "winRatePct": 39,
+    "score": 51.45
+   },
+   "causes": [
+    {
+     "cause": "stopped",
+     "label": "들어가서 손절로 끝난 거래",
+     "losingTrades": 39,
+     "lossSharePct": 95
+    },
+    {
+     "cause": "weak_signal",
+     "label": "위원회 확신이 약할 때(|확신| < 0.6) 들어간 거래",
+     "losingTrades": 20,
+     "lossSharePct": 47
+    },
+    {
+     "cause": "low_adx",
+     "label": "추세 강도가 약할 때(ADX < 25) 들어간 거래",
+     "losingTrades": 13,
+     "lossSharePct": 32
+    }
+   ],
+   "tried": 5,
+   "fix": "손절 2 ATR → 1.5 ATR",
+   "after": {
+    "returnPct": 64.6,
+    "maxDrawdownPct": 17.1,
+    "trades": 104,
+    "winRatePct": 30,
+    "score": 56.05
+   }
+  },
+  {
+   "round": 2,
+   "before": {
+    "returnPct": 64.6,
+    "maxDrawdownPct": 17.1,
+    "trades": 104,
+    "winRatePct": 30,
+    "score": 56.05
+   },
+   "causes": [
+    {
+     "cause": "stopped",
+     "label": "들어가서 손절로 끝난 거래",
+     "losingTrades": 71,
+     "lossSharePct": 99
+    },
+    {
+     "cause": "weak_signal",
+     "label": "위원회 확신이 약할 때(|확신| < 0.6) 들어간 거래",
+     "losingTrades": 32,
+     "lossSharePct": 45
+    },
+    {
+     "cause": "low_adx",
+     "label": "추세 강도가 약할 때(ADX < 25) 들어간 거래",
+     "losingTrades": 23,
+     "lossSharePct": 30
+    }
+   ],
+   "tried": 11,
+   "fix": "장기 추세(EMA200)와 같은 방향일 때만 진입",
+   "after": {
+    "returnPct": 68.1,
+    "maxDrawdownPct": 17.1,
+    "trades": 103,
+    "winRatePct": 30,
+    "score": 59.55
+   }
+  },
+  {
+   "round": 3,
+   "before": {
+    "returnPct": 68.1,
+    "maxDrawdownPct": 17.1,
+    "trades": 103,
+    "winRatePct": 30,
+    "score": 59.55
+   },
+   "causes": [
+    {
+     "cause": "stopped",
+     "label": "들어가서 손절로 끝난 거래",
+     "losingTrades": 70,
+     "lossSharePct": 99
+    },
+    {
+     "cause": "weak_signal",
+     "label": "위원회 확신이 약할 때(|확신| < 0.6) 들어간 거래",
+     "losingTrades": 31,
+     "lossSharePct": 44
+    },
+    {
+     "cause": "low_adx",
+     "label": "추세 강도가 약할 때(ADX < 25) 들어간 거래",
+     "losingTrades": 22,
+     "lossSharePct": 29
+    }
+   ],
+   "tried": 10,
+   "note": "더 나아지는 수정이 없어 멈춤"
+  }
+ ],
+ "overrides": {
+  "stopAtrMult": 1.5,
+  "requireRegime": true
+ },
+ "holdout": {
+  "original": {
+   "returnPct": 35.2,
+   "maxDrawdownPct": 16.5,
+   "trades": 42,
+   "winRatePct": 40,
+   "score": 26.95
+  },
+  "improved": {
+   "returnPct": 33.9,
+   "maxDrawdownPct": 18.1,
+   "trades": 49,
+   "winRatePct": 33,
+   "score": 24.85
+  },
+  "verdict": "안 본 최근 1년에서는 나아지지 않음 → 과거에만 맞춘 수정일 수 있어 반영하지 않음"
+ },
+ "journal": {
+  "knownBefore": 9,
+  "addedNow": 27,
+  "skippedKnownFailures": 0
+ }
+}

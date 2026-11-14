@@ -53,6 +53,11 @@ export function committeeSignal(candles, p) {
     if (conviction > 0 && !(htf > need)) htfBlock = `상위(${p.htfInterval || '1d'}) 위원회 ${htf.toFixed(2)} → 롱 보류`;
     if (conviction < 0 && !(htf < -need)) htfBlock = `상위(${p.htfInterval || '1d'}) 위원회 ${htf.toFixed(2)} → 숏 보류`;
   }
+  // Optional: only trade in the direction of the long-term regime analyst (EMA200).
+  if (!htfBlock && p.requireRegime && Math.abs(conviction) >= th && strength >= adxMin) {
+    const reg = votes.find(v => v.analyst === 'regime')?.signal;
+    if (reg !== (conviction > 0 ? 'bullish' : 'bearish')) htfBlock = `장기국면(EMA200)이 ${reg === 'neutral' ? '중립' : '반대'} → 진입 보류`;
+  }
   const tpMult = p.takeProfitAtrMult;
   if (!htfBlock && Math.abs(conviction) >= th && strength >= adxMin) {
     const L = conviction > 0;
