@@ -34,3 +34,4 @@
 {"key":"55d79a655914","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"변동성 필터 손절폭 6% → 4%","verdict":"실패","why":"학습구간 점수 59.55 → 57.15 (수익 68.1% → 64.8%, 낙폭 17.1% → 15.3%)"}
 {"key":"9655dada52c5","when":"2026-11-14","symbol":"SOLUSDT","base":{"stopAtrMult":1.5,"requireRegime":true},"tried":"익절 5 ATR → 6 ATR","verdict":"실패","why":"학습구간 점수 59.55 → 44.35 (수익 68.1% → 54.1%, 낙폭 17.1% → 19.5%)"}
 {"key":"a36a93e0cc92","when":"2026-11-14","symbol":"SOLUSDT","tried":"최종 조합 {\"stopAtrMult\":1.5,\"requireRegime\":true}","verdict":"실패","why":"안 본 1년 점수 26.95 → 24.85"}
+{"key": null, "when": "2026-11-16", "symbol": "SOL", "tried": "그리드 매매 (frequant 방식: 범위 안에서 아래 매수·한 칸 위 매도, 1시간봉, 레버리지 없음)", "verdict": "보류", "why": "3년: 항상 켜면 -6.5~-66.6%, 횡보장(ADX<20)만+간격2%가 +22.9%지만 최대 낙폭 46.2% (위원회 14.1%). 현물 수수료 0.1%면 대부분 손실. 잔고 300 USDT 이상 되면 '추세엔 위원회, 횡보엔 그리드' 조합으로 연구 도구(안 본 1년 검증)에서 재검토", "source": "수동 실험(대화)"}
