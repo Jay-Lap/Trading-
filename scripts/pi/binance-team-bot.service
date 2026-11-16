@@ -1,0 +1,16 @@
+[Unit]
+Description=Binance futures team bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__REPO__
+ExecStart=/usr/bin/node src/chief.js
+Restart=always
+RestartSec=30
+# give the bot time to save state on stop (it handles SIGTERM)
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
